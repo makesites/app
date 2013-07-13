@@ -1,5 +1,7 @@
 # APP() 
 
+*** WARNING: *** Highly experimental, although geared towards becoming a production-ready solution. 
+
 A JavaScript class that creates a client-side app skeleton with popular methods, based on [backbone-app](http://github.com/makesites/backbone-app)
 
 ## Features 
