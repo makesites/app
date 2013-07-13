@@ -1,7 +1,7 @@
 {
-  "name": "app",
-  "version": "0.1.0",
-  "main": ["./build/app.js"],
-  "dependencies": { "jquery", "underscore" }
+	"name": "app",
+	"version": "0.1.0",
+	"main": ["./build/app.js"],
+	"dependencies": { "jquery", "underscore" }
 }
 
