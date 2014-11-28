@@ -2,7 +2,7 @@
  * @name app
  * APP constructor with common classes for application development
  *
- * Version: 0.1.0 (Fri, 28 Nov 2014 00:32:03 GMT)
+ * Version: 0.2.0 (Fri, 28 Nov 2014 00:34:09 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
