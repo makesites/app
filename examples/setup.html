@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>APP :: Setup</title>
+
+<!-- shims -->
+<script type="text/javascript" src="../components/webcomponentsjs/webcomponents.js"></script>
+<script type="text/javascript" src="../components/system.js/dist/system.js"></script>
+<script type="text/javascript" src="../components/es6-module-loader/dist/es6-module-loader.js"></script>
+<script type="text/javascript" src="../components/traceur/traceur.js"></script>
+
+<!-- main lib -->
+<link type="import" href="../index.html">
+
+</head>
+<body>
+
+<div id="main"><!-- --></div>
+
+<script type="text/javascript">
+
+// System.js config
+var config = {
+	// set all requires to "lib" for library code
+	baseURL: '/assets/js/',
+
+	paths: {
+		'app': '../build/app.js',
+		'app/*': 'app/*.js',
+		'helpers/*': 'helpers/*.js',
+		'libs/*': 'libs/*.js'
+	}
+};
+
+var options = {};
+//module app from "../build/app.js";
+//import { degault as APP } from "app";
+//console.log( APP );
+
+var app;
+
+System.config( config ); // this is optional - remove if using KISSCMS or Brisk
+
+System.import('app').then(function(APP){
+	// setup app
+	APP(options, function( Controller ){
+		// initialize
+		app = new Controller();
+		// update Backbone options
+		Backbone.history.start({ pushState: config.app.pushState });
+	});
+
+}).catch(function(e) {
+	setTimeout(function() {
+		throw e;
+	});
+});
+js:
+</script>
+
+</body>
+</html>
