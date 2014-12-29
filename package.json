@@ -5,8 +5,12 @@
 	"homepage" : "http://github.com/makesites/app",
 	"licenses": [
 		{
-			"type": "Apache License, Version 2.0",
-			"url": "http://www.makesites.org/licenses/APACHE-2.0"
+			"type": "MPL v2.0",
+			"url": "http://www.mozilla.org/MPL/2.0/"
+		},
+		{
+			"type": "AGPL",
+			"url": "http://www.gnu.org/licenses/agpl.html"
 		}
 	],
 	"engine" : {
