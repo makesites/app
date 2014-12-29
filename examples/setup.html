@@ -6,9 +6,9 @@
 
 <!-- shims -->
 <script type="text/javascript" src="../components/webcomponentsjs/webcomponents.js"></script>
-<script type="text/javascript" src="../components/system.js/dist/system.js"></script>
 <script type="text/javascript" src="../components/es6-module-loader/dist/es6-module-loader.js"></script>
 <script type="text/javascript" src="../components/traceur/traceur.js"></script>
+<script type="text/javascript" src="../components/system.js/dist/system.js"></script>
 
 <!-- main lib -->
 <link type="import" href="../index.html">
@@ -46,9 +46,8 @@ System.import('app').then(function(APP){
 	// setup app
 	APP(options, function( Controller ){
 		// initialize
-		app = new Controller();
-		// update Backbone options
-		Backbone.history.start({ pushState: config.app.pushState });
+		console.log("setup complete!");
+		//app = new Controller();
 	});
 
 }).catch(function(e) {
