@@ -11,15 +11,20 @@
 		"application",
 		"library"
 	],
-	"license": "APACHE-2.0",
+	"license": "MPL v2.0, AGPL",
 	"repository" : "http://github.com/makesites/app",
 	"main": ["./build/app.js"],
 	"ignore": [
+		"bower_components",
+		"components",
 		"node_modules"
 	],
 	"dependencies": {
+		"jquery": "*",
 		"handlebars": "*",
+		"system.js": "*",
 		"underscore": "*",
-		"vanilla-query": "*"
+		"vanilla-query": "*",
+		"webcomponentsjs": "*"
 	}
 }
