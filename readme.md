@@ -22,4 +22,4 @@ Distributed through [Makesites.org](http://makesites.org)
 
 ## License
 
-Released under the [MPL v2.0](http://www.mozilla.org/MPL/2.0/) & [AGPL](http://www.gnu.org/licenses/agpl.html)
+Released under the [MPL v2.0](http://www.mozilla.org/MPL/2.0/) & [AGPL v3.0](http://www.gnu.org/licenses/agpl-3.0.html)
