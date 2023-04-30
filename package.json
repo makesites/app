@@ -21,6 +21,6 @@
 		"commander": "10.x.x",
 		"hbs": "4.x.x",
 		"jshint": "2.x.x",
-		"terser": "5.x.x"
+		"terser": ">=5.14.2"
 	}
 }
