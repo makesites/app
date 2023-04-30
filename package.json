@@ -17,14 +17,10 @@
 	"engine": {
 		"node": ">=0.8.x"
 	},
-	"dependencies": {
-	},
 	"devDependencies": {
-		"grunt": "1.x.x",
-		"grunt-rollup": "10.x.x",
-		"grunt-terser": ">=0.1.0",
-		"rollup-plugin-babel": "4.x.x",
-		"rollup-plugin-babel-minify": "8.x.x",
-		"@babel/preset-env": "7.x.x"
+		"commander": "10.x.x",
+		"hbs": "4.x.x",
+		"jshint": "2.x.x",
+		"terser": "5.x.x"
 	}
 }

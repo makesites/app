@@ -4,11 +4,21 @@
 
 A JavaScript class that creates a client-side app skeleton with popular methods, based on [backbone-app](http://github.com/makesites/backbone-app)
 
+
 ## Features
 
 * ES6 compliant (no fallbacks)
 * Router
 * HTML fragments
+
+
+## Build
+
+To compile the file use
+``
+$ node build
+``
+
 
 ...
 

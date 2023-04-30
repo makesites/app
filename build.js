@@ -6,7 +6,7 @@
 // - Dependencies: NPM/Node.js
 // - Conventions:
 // * code is in a lib/ folder with a main.js as the main context (closure)
-// * a bower.json on the root contains all the info about the lib: name, description, author, license
+// * a package.json on the root contains all the info about the lib: name, description, author, license
 // * compiled files are saved in a build folder
 
 // settings
@@ -15,7 +15,7 @@ var FILE_ENCODING = 'utf-8',
 
 // Dependencies
 var cli = require('commander'),
-	uglify = require("uglify-js"),
+	terser = require("terser"),
 	jshint = require('jshint'),
 	handlebars = require('hbs'),
 	fs = require('fs'),
@@ -23,21 +23,35 @@ var cli = require('commander'),
 
 
 // will generate a CSV if package info contains multiple licenses
-/*
 handlebars.registerHelper('license', function(items){
 	items = items.map(function(val){
 		return val.type;
 	});
 	return items.join(', ');
 });
-*/
 
 // Logic
-// - read module name from bower file
-var package = JSON.parse( fs.readFileSync('bower.json', FILE_ENCODING) ); // condition the existance of package.json or component.json...
+// - read module name from package file
+var package = JSON.parse( fs.readFileSync('package.json', FILE_ENCODING) ); // condition the existance of package.json or component.json...
 var name = package.name;
 // - list files in the lib folder
-var src = libFiles();
+//var src = libFiles();
+// - concatinate all files
+var src = [
+	// third-party helpers
+	//'deps/backbone.easing.js',
+	//'deps/backbone.analytics.js',
+	//'deps/backbone.extender.js',
+	// main lib
+	'lib/collection.js',
+	'lib/controller.js',
+	'lib/model.js',
+	'lib/view.js',
+	'lib/layout.js',
+	'lib/template.js',
+	'lib/utils.js',
+	'lib/app.js'
+];
 
 // - concatinate all files
 concat({
@@ -50,7 +64,7 @@ concat({
 lint('build/'+ name +'.js', function(){
 
 	// - Create / save minified file
-	minify('build/'+ name +'.js', 'build/'+ name +'-min.js');
+	minify('build/'+ name +'.js', 'build/'+ name +'.min.js');
 
 });
 
@@ -82,26 +96,37 @@ function concat(opts) {
 
 
 function minify(srcPath, distPath) {
-	/*
-	var
-	  jsp = uglyfyJS.parser,
-	  pro = uglyfyJS.uglify,
-	  ast = jsp.parse( fs.readFileSync(srcPath, FILE_ENCODING) );
 
-	ast = pro.ast_mangle(ast);
-	ast = pro.ast_squeeze(ast);
-	*/
+	var source = fs.readFileSync(srcPath, FILE_ENCODING);
 
-	var min = uglify.minify(srcPath, { compressor: {
-		comments : /@name|@author|@cc_on|@url|@license/
-	} });
+	terser.minify(source, {
+		mangle: true,
+		output: {
+			comments : /@name|@author|@cc_on|@url|@license/
+		},
+		//sourceMap: {
+		//	filename: "build/app.min.js.map",
+		//	url: "app.min.js.map"
+		//},
+		//ecma: 8,
+		//compress: false
+	}).then(function(result){
 
-	// gzip
-	zlib.gzip(min.code, function (error, result) {
-		if (error) throw error;
-		fs.writeFileSync(distPath, result, FILE_ENCODING);
+		fs.writeFileSync(distPath, result.code, FILE_ENCODING);
+
+
 		console.log(' '+ distPath +' built.');
+
+		// disable gzip
+		return;
+
+		// gzip
+		zlib.gzip(result.code, function (error, bytes) {
+			if (error) throw error;
+			fs.writeFileSync(distPath, bytes, FILE_ENCODING);
+		});
 	});
+
 
 }
 
