@@ -1,38 +1,24 @@
-
 /**
  * @name app
  * 
  *
- * Version: 0.3.1 (2019)
+ * Version: 0.3.3 (Sun, 30 Apr 2023 05:31:00 GMT)
  * Source: 
  *
  * @author makesites
  * Distributed by [Makesites.org](http://makesites.org)
  *
- * @license Released under the MPL-2.0, AGPL-3.0 licenses
+ * @license Released under the MPL v2.0, AGPL v3.0 licenses
  */
 
-class Model {
-	constructor() {
+//import { APP } from "./app.js";
 
-	}
-}
 
-class View {
-	constructor() {
-
-	}
-}
-
-class Controller {
-	constructor() {
-
-	}
-
-}
 
 class Collection {
 	constructor( options ) {
+		// defaults
+		this.defaults = {};
 		// merge options
 		options = options || {};
 		this.options = this.constructor.defaults;
@@ -52,14 +38,73 @@ class Collection {
 
 }
 
-// defaults
-Collection.defaults = {};
+
+export { Collection };
+
+
+class Controller {
+
+	constructor() {
+		// defaults
+		this.routes = {};
+	}
+
+}
+
+export { Controller };
+
+
+class Model {
+	constructor() {
+
+	}
+}
+
+export { Model };
+
+
+class View {
+	constructor() {
+
+	}
+}
+
+export { View };
+
 
 class Layout {
 	constructor() {
 
 	}
 }
+
+export { Layout };
+
+
+class Template {
+	constructor() {
+
+	}
+}
+
+export { Template };
+
+// Helper classes
+
+class Utils {
+	constructor() {
+
+	}
+}
+
+export { Utils };
+
+
+//import { Model } from "./model.js";
+//import { View } from "./view.js";
+//import { Controller } from "./controller.js";
+//import { Collection } from "./collection.js";
+//import { Layout } from "./layout.js";
 
 // Namespace definition
 class APP {
@@ -154,5 +199,9 @@ APP.View = View;
 APP.Controller = Controller;
 APP.Collection = Collection;
 APP.Layout = Layout;
+
+export { APP };
+
+
 
 if ( window ) window.APP = APP;
