@@ -1,46 +1,84 @@
+
 /**
  * @name app
- * APP constructor with common classes for application development
+ * 
  *
- * Version: 0.2.0 (Fri, 28 Nov 2014 00:34:09 GMT)
- * Source: http://github.com/makesites/app
+ * Version: 0.3.1 (2019)
+ * Source: 
  *
  * @author makesites
- * Initiated by: Makis Tracend (@tracend)
- * Distributed through [Makesites.org](http://makesites.org)
+ * Distributed by [Makesites.org](http://makesites.org)
  *
- * @cc_on Copyright Â© Makesites.org
- * @license Released under the [APACHE-2.0 license](http://makesites.org/licenses/APACHE-2.0)
+ * @license Released under the MPL-2.0, AGPL-3.0 licenses
  */
 
-(function (lib) {
+class Model {
+	constructor() {
 
-	//"use strict";
-
-	if (typeof define === 'function' && define.amd) {
-		// AMD. Register as an anonymous module.
-		var deps = ['jquery', 'underscore', 'backbone'];
-		define("backbone.app", deps, lib); // give the module a name
-	} else if ( typeof module === "object" && module && typeof module.exports === "object" ){
-		// Expose as module.exports in loaders that implement CommonJS module pattern.
-		module.exports = lib;
-	} else {
-		// Browser globals
-		var Query = window.jQuery || window.Zepto || window.vQuery;
-		lib(Query, window._, window.Backbone, window.APP);
 	}
-}(function ($, _, Backbone) {
+}
 
-	//"use strict";
-	// better way to define global scope?
-	var window = this.window || {};
-	var APP = window.APP || false;
+class View {
+	constructor() {
 
-	// stop processing if APP is already part of the namespace
-	if( !APP ) (function(_, Backbone) {
+	}
+}
 
-	// App contructor
-	APP = function(){
+class Controller {
+	constructor() {
+
+	}
+
+}
+
+class Collection {
+	constructor( options ) {
+		// merge options
+		options = options || {};
+		this.options = this.constructor.defaults;
+		this.options = utils.extend( {}, this.options, options );
+		//...
+
+		this.initialize();
+	}
+
+	initialize(){
+
+	}
+
+	render(){
+
+	}
+
+}
+
+// defaults
+Collection.defaults = {};
+
+class Layout {
+	constructor() {
+
+	}
+}
+
+// Namespace definition
+class APP {
+
+	constructor() {
+
+		this.name = 'APP';
+
+		// internal
+		this._routes = [];
+
+		// Namespace containers
+		this.Models = {};
+		this.Routers = {};
+		this.Collections = {};
+		this.Views = {};
+		this.Layouts = {};
+		this.Templates = {};
+
 		// get config
 		var options = arguments[0] || {};
 		var callback = arguments[1] || function(){};
@@ -100,128 +138,21 @@
 			// return controller so it's accessible through the app global
 			return controller;
 		}
-	};
-
-	// Namespace definition
-	APP.Models = {};
-	APP.Routers = {};
-	APP.Collections = {};
-	APP.Views = {};
-	APP.Layouts = {};
-	APP.Templates = {};
-
-	})(this._, this.Backbone);
-
-	/*
-	class APP {
-
-		name: 'APP'
-		// internal
-		_routes: []
-
-		constructor() {
-
-		}
-
-		routes() {
-			return this._routes;
-		}
-
-	}
-	*/
-
-(function(APP) {
-
-	class Collection {
-		constructor() {
-
-		}
 	}
 
-	APP.Collection = Collection;
-
-})(this.APP);
-(function(APP) {
-
-	class Controller {
-		constructor() {
-
-		}
-
-		routes: {
-
-		}
+	routes() {
+		return this._routes;
 	}
 
-	APP.Controller = Controller;
-
-})(this.APP);
-(function(APP) {
-
-	class Layout {
-		constructor() {
-
-		}
-	}
-
-	APP.Layout = Layout;
-
-})(this.APP);
-(function(APP) {
-
-	class Model {
-		constructor() {
-
-		}
-	}
-
-	APP.Model = Model;
-
-})(this.APP);
-(function(APP) {
-
-	class Template {
-		constructor() {
-
-		}
-	}
-
-	APP.Template = Template;
-
-})(this.APP);
-/*
-// Helper classes
-
-class Main extends Controller {
-	constructor() {
-
-	}
 }
 
-*/
-(function(APP) {
 
-	class View {
-		constructor() {
 
-		}
-	}
+// Base Classes
+APP.Model = Model;
+APP.View = View;
+APP.Controller = Controller;
+APP.Collection = Collection;
+APP.Layout = Layout;
 
-	APP.View = View;
-
-})(this.APP);
-
-	// If there is a window object, that at least has a document property
-	if( typeof window === "object" && typeof window.document === "object" ){
-		// save in the global namespace
-		window.APP = APP;
-	}
-
-	// ES 6
-	module "app" {
-		export APP
-	}
-	// for module loaders:
-	return APP;
-
-}));
+if ( window ) window.APP = APP;
