@@ -19,7 +19,7 @@
 	},
 	"devDependencies": {
 		"commander": "10.x.x",
-		"hbs": "4.x.x",
+		"hbs": ">4.1.2",
 		"jshint": "2.x.x",
 		"terser": ">=5.14.2"
 	}
