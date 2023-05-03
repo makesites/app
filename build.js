@@ -135,7 +135,7 @@ function lint(path, callback) {
 	// remove Byte Order Mark
 	buf = buf.replace(/^\uFEFF/, '');
 
-	jshint.JSHINT(buf, { esversion: 6 });
+	jshint.JSHINT(buf, { esversion: 6, evil: true });
 
 	var nErrors = jshint.JSHINT.errors.length;
 
