@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>APP :: Templates</title>
+<link rel="shortcut icon" href="#">
+
+<script type="module">
+import { APP, Model, View } from '/build/app.js';
+
+//var template = new Template();
+
+let model = new Model({
+	name: "FirstName LastName",
+	desc: "profile description",
+	count: 15
+});
+
+// get template
+var template = document.getElementsByTagName("template")[0];
+
+let view  = new View({
+	el: "#main",
+	data: model,
+	html: template.innerHTML
+});
+
+// combine data with template, render output
+view.render();
+</script>
+
+</head>
+<body>
+
+
+<h1>APP :: Templates</h1>
+
+<p>A view that combines a data set with a fragment from a template tag</p>
+
+<div id="main"><!-- --></div>
+
+<template>
+	${name}
+	<p>${desc}</p>
+</template>
+
+</body>
+</html>
