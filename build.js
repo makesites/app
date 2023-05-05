@@ -33,7 +33,7 @@ handlebars.registerHelper('license', function(items){
 // Logic
 // - read module name from package file
 var package = JSON.parse( fs.readFileSync('package.json', FILE_ENCODING) ); // condition the existance of package.json or component.json...
-var name = package.name;
+var name = "app"; //package.name;
 // - list files in the lib folder
 //var src = libFiles();
 // - concatinate all files
