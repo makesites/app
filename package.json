@@ -15,7 +15,7 @@
 		}
 	],
 	"engine": {
-		"node": ">=0.8.x"
+		"node": ">=10.x.x"
 	},
 	"devDependencies": {
 		"commander": "10.x.x",
