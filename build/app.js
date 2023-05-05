@@ -1,8 +1,8 @@
 /**
- * @name app
+ * @name @makesites/app
  * 
  *
- * Version: 0.4.0 (Mon, 01 May 2023 04:50:14 GMT)
+ * Version: 0.5.0 (Fri, 05 May 2023 06:13:06 GMT)
  * Source: 
  *
  * @author makesites
@@ -15,7 +15,104 @@
 
 
 
-class Collection {
+class Base {
+
+	constructor(){
+
+	}
+
+	// Events
+
+	bind( name, cb ){
+
+		// alias of "on"
+		this.on( name , cb, false);
+
+	}
+
+	on( name, cb ){
+
+		// Listen for the event.
+		this._e.addEventListener( name , cb, false);
+
+	}
+
+	trigger( name, ctx, options ){
+		const e = new Event( name );
+
+		// Dispatch the event.
+		this._e.dispatchEvent( e, ctx, options );
+
+	}
+
+	remove() {
+		// stop resize monitoring
+		window.removeEventListener( "resize", this._resize );
+
+		// don't forget to call the original remove() function
+		//Backbone.View.prototype.remove.call(this);
+	}
+
+	unbind( name, cb ){
+		if( !name ){
+			// Remove all event listeners from Element by cloning it
+			this.el.replaceWith( this.el.cloneNode(true) );
+		} else if( !cb ) {
+			// remove specific event
+			this.el.removeEventListener( name );
+		} else {
+			// remove specific event
+			this.el.removeEventListener( name, cb );
+		}
+	}
+
+	delegateEvents( events ){
+		events =  events || _.result(this, 'events');
+		var self = this;
+		var delegateEventSplitter = /^(\S+)\s*(.*)$/;
+		if (!events) return this;
+		this.undelegateEvents();
+		const enames = Object.keys(events);
+		enames.forEach(key => {
+			var method = events[key];
+			if( typeof method !== 'function' ) method = this[method];
+			if( !method ) return;
+			var match = key.match(delegateEventSplitter);
+			self.el.querySelectorAll(match[2]).forEach( (el) => (el.addEventListener(match[1] + '.delegateEvents' + self.cid, method.bind(self)) ));
+		});
+		return this;
+	}
+
+	undelegateEvents(){
+
+		//this.el.removeAllListeners('.delegateEvents' + this.cid, function(event) {
+		//	event.stopImmediatePropagation();
+		//}, true);
+		return this;
+	}
+
+	// Element
+	setElement( element ){
+		this.undelegateEvents();
+		this._setElement(element);
+		this.delegateEvents();
+		return this;
+	}
+
+	// TODO: internal method to do more than just save the element
+	_setElement( el ){
+		this.el = el;
+	}
+
+/*
+	unbind( types, fn ) {
+		return this.off( types, null, fn );
+	}
+*/
+}
+
+
+class Collection extends Base {
 
 	constructor( models, options ) {
 		// defaults
@@ -30,7 +127,7 @@ class Collection {
 		// merge options
 		options = options || {};
 		//this.options = this.constructor.defaults;
-		this.options = utils.extend( {}, this.defaults, options );
+		this.options = _.extend( {}, this.defaults, options );
 		//this.options = _.extend({}, this.defaults, options);
 		//...
 
@@ -124,7 +221,7 @@ class Controller {
 		options = options || {};
 		// extend default options (recursive?)
 		//this.options = _.extend({}, this.defaults, options);
-		this.options = utils.extend({}, this.defaults, options);
+		this.options = _.extend({}, this.defaults, options);
 
 		// to preserve these routes, extend with:
 		// _.extend({}, APP.Router.prototype.routes, {...});
@@ -347,39 +444,46 @@ class Controller {
 }
 
 
-class Model {
+class Model extends Base {
 
 	constructor( model, options ) {
+		super( options );
 
 		this.defaults = {
 			autofetch: false,
 			cache: false
 		};
 
+		this.attributes = {};
+
+		// events
+		// - hidden target
+		this._e = new EventTarget();
+
 		// save options for later
 		options = options || {};
-		this.options = utils.extend({}, this.defaults, options);
-		//this.options = _.extend({}, this.defaults, options);
+		this.options = _.extend({}, this.defaults, options);
+		// set data if given
+		//if( !_.isNull( model ) && !_.isEmpty( model ) ) this.set( model );
+		if( typeof model == "object" ) this.set( model );
 
 		this.initialize();
 	}
 
 	// initialization
 	initialize(){
-		// set data if given
-		//if( !_.isNull( model ) && !_.isEmpty( model ) ) this.set( model );
-		if( typeof model == "object" ) this.set( model );
 		// restore cache
 		if( this.options.cache ){
 			var cache = this.cache();
 			if( cache ) this.set( cache );
 		}
 		// auto-fetch if no models are passed
-		//if( this.options.autofetch && !_.isUndefined(this.url) ){
-		if( this.options.autofetch && !utils.isUndefined(this.url) ){
+		if( this.options.autofetch && !_.isUndefined(this.url) ){
 				this.fetch();
 		}
 	}
+
+	// Getter/Setter
 
 	// add is like set but only if not available
 	add( obj ){
@@ -393,6 +497,45 @@ class Model {
 		this.set( data );
 	}
 
+	// Get the value of an attribute.
+	get( attr ){
+		return this.attributes[attr];
+	}
+
+	has( attr ){
+		return this.get(attr) != null;
+	}
+
+	// Set a hash of model attributes on the object, firing `"change"`.
+	// Based on Backbone.js Model.set
+	set( key, val, options ){
+		if (key == null) return this;
+
+		// Handle both `"key", value` and `{key: value}` -style arguments.
+		var attrs;
+		if (typeof key === 'object') {
+			attrs = key;
+			options = val;
+		} else {
+			(attrs = {})[key] = val;
+		}
+
+		options = options || {};
+
+		// Extract attributes and options.
+		var silent     = options.silent;
+
+		// For each `set` attribute, update or delete the current value.
+		for( var attr in attrs ){
+			val = attrs[attr];
+			this.attributes[attr] = val;
+		}
+
+		if (!silent)  this.trigger('change', this, options);
+
+		return this;
+	}
+
 	// #63 reset model to its default values
 	reset(){
 		return this.clear().set(this.defaults);
@@ -402,6 +545,23 @@ class Model {
 	cache(){
 		// optionally create your own custom a cache mechanism...
 		return ( Model.cache ) ? Model.cache() : false;
+	}
+
+	// Events
+
+	on( name, cb ){
+
+		// Listen for the event.
+		this._e.addEventListener( name , cb, false);
+
+	}
+
+	trigger( name, ctx, options ){
+		const e = new Event( name );
+
+		// Dispatch the event.
+		this._e.dispatchEvent( e, ctx, options );
+
 	}
 
 	// Helper functions
@@ -425,6 +585,12 @@ class Model {
 		return data;
 	}
 
+	toJSON( options ){
+		var obj = this.attributes;
+		if (typeof obj !== 'object') return obj;
+		return ( Array.isArray(obj) ) ? obj.slice() : _.extend({}, obj);
+	}
+
 	// extract data (and possibly filter keys)
 	output(){
 		// in most cases it's a straight JSON output
@@ -434,9 +600,17 @@ class Model {
 }
 
 
-class View {
+class View extends Base {
 
 	constructor( options ){
+		// fallback(s)
+		options = options || {};
+		//
+		super( options );
+		// element
+		this.el = this._getEl( options );
+		// find the data
+		this.data = options.data || this.model || this.collection || null;
 		// containers
 		//var state = Backbone.View.prototype.state || new Backbone.Model();
 		this.state = new Model();
@@ -462,19 +636,20 @@ class View {
 			autoRender: true,
 			inRender: false,
 			silentRender: false,
-			renderTarget: false,
-			saveOptions: true // eventually disable this (test first)
+			renderTarget: false
 		};
 		// events
+		// - hidden target
+		this._e = new EventTarget();
+
 		this.events = {
 			"click a[rel='external']" : "clickExternal"
 		};
 
-		// fallback
-		options = options || {};
 		//  extend options
-		//this.options = _.extend({}, this.defaults, options);
-		this.options = utils.extend({}, this.defaults, options);
+		this.options = _.extend({}, this.defaults, options);
+		// flags
+		this.options.data  = !_.isNull( this.data );
 
 		this.initialize();
 	}
@@ -482,52 +657,36 @@ class View {
 	initialize(){
 		var self = this;
 		// unbind this container from any previous listeners
-		$(this.el).unbind();
+		this.unbind();
 		//
 		//_.bindAll(this, 'render', 'clickExternal', 'postRender', 'onLoaded', '_url', '_inDOM', '_toJSON', '_onLoaded');
 		//if( typeof this.url == "function" ) _.bindAll(this, 'url');
-		// #73 - optionally saving options
-		if( this.options.saveOptions ) this.options = _.extend(this.options, options);
-		// find the data
-		this.data = this.data || this.model || this.collection || null;
-		this.options.data  = !_.isNull( this.data );
 		//
-		this.on('loaded', this.onLoaded );
-		this.on('loaded', this._onLoaded );
-
+		this.on('loaded', this._onLoaded.bind(this) );
+		this.on('loaded', this.onLoaded.bind(this) );
 
 		// #9 optionally add a reference to the view in the container
 		if( this.options.attr ) {
 			$(this.el).attr("data-view", this.options.attr );
 		} else {
-			$(this.el).removeAttr("data-view");
+			this.el.removeAttribute("data-view");
 		}
 		// compile
 		var html = ( this.options.html ) ? this.options.html : null;
-		// #18 - supporting custom templates
-		var Template = (this.options.template || typeof APP == "undefined") ? this.options.template : (APP.Template || false);
-		// #76 considering url as a flat option
-		if( this.url && !this.options.url) this.options.url = this.url; // check for string?
-		// #72 - include init options in url()
-		var url = this._url( options );
+		// considering url as a flat option (check for string?)
+		if( this.url && !this.options.url) this.options.url = this.url;
+		// include init options in url()
+		var url = this._url( this.options );
 		// proxy internal method for future requests
 		this.url = this._url;
+		// supporting custom templates
+		let TMPL = ( this.options.template ) ? this.options.template : Template;
 
-		if( Template ) {
-			// set the type to default (as the Template expects)
-			if( !this.options.type ) this.options.type = "default";
-			this.template = (typeof Template == "function") ? new Template(html, { url : url }) : Template;
-			if( self.options.autoRender ) this.template.bind("loaded", this.render);
-		} else if( url ) {
-			// fallback to the underscore template
-			$.get(url, function( html ){
-				self.template = _.template( html );
-				if( self.options.autoRender ) self.render();
-			});
-		} else {
-			this.template = _.template( html );
-			if( self.options.autoRender ) this.render();
-		}
+		// set the type to default (as the Template expects)
+		if( !this.options.type ) this.options.type = "default";
+		this.template = (typeof TMPL == "function") ? new TMPL(html, { url : url }) : TMPL;
+		if( self.options.autoRender ) this.template.bind("loaded", this.render);
+
 		// add listeners
 		if( this.options.data && !_.isUndefined( this.data.on ) ){
 			this.data.on( this.options.bind, this.render);
@@ -539,7 +698,7 @@ class View {
 			this.trigger("loaded");
 		}
 		// #36 - Adding resize event
-		$(window).bind("resize", _.bind(this._resize, this));
+		window.addEventListener("resize", this._resize.bind(this) );
 
 		this.initStates();
 		// initiate parent (states etc.)
@@ -550,11 +709,11 @@ class View {
 	initStates(){
 		for(var e in this.states){
 			var method = this.states[e];
-			this.bind(e, _.bind(this[method], this) );
+			this.bind(e, this[method].bind(this) );
 		}
 	}
 
-	// #71 parse URL in runtime (optionally)
+	// parse URL in runtime (optionally)
 	_url( options ){
 		// fallback
 		options = options || {};
@@ -575,27 +734,23 @@ class View {
 		//
 		var template = this._getTemplate();
 		var data = this.toJSON();
-		// #19 - checking instance of template before executing as a function
+		// checking instance of template before executing as a function
 		var html = ( template instanceof Function ) ? template( data ) : template;
-		var $el;
-		// #64 find the render target
-		var $container = this._findContainer();
+		// find the render target
+		var container = this._findContainer();
 		// saving element reference
 		if( !this.el ){
-			$el = $( html );
-			this.el = this.$el = $el;
+			this.el = html; // convert to a Node?
 		}
 		// make sure the element is attached to the DOM
 		this._inDOM();
 		// ways to insert the markup
 		if( this.options.append ){
-			$el = $el || $( html );
-			$container.append( $el );
+			container.append( this.el );
 		} else if( this.options.prepend ){
-			$el = $el || $( html );
-			$container.prepend( $el );
+			container.prepend( this.el );
 		} else {
-			$container.html( html );
+			container.innerHTML = html;
 		}
 		// execute post-render actions
 		this._postRender();
@@ -636,30 +791,21 @@ class View {
 	// attach to an event for a tab like effect
 	clickTab(e){
 		e.preventDefault();
-		var section = this.findLink(e.target);
-		$(this.el).find( section ).show().siblings().hide();
+		let section = this.findLink(e.target);
+		let sectionEl = this.el.querySelector( section );
+		sectionEl.style.display = 'block';
+		var siblings = utils.getSiblings( sectionEl );
+		siblings.forEach( (sibling) => (sibling.style.display = 'none') );
 		// optionally add selected class if li available
 		$(e.target).parent("li").addClass("selected").siblings().removeClass("selected");
 	}
 
 	findLink(obj) {
 		if (obj.tagName != "A") {
-			return $(obj).closest("a").attr("href");
+			return $(obj).closest("a").getAttribute("href");
 		} else {
-			return $(obj).attr("href");
+			return obj.getAttribute("href");
 		}
-	}
-
-	remove() {
-		// unbind the namespaced
-		$(window).unbind("resize", this._resize);
-
-		// don't forget to call the original remove() function
-		Backbone.View.prototype.remove.call(this);
-	}
-
-	unbind( types, fn ) {
-		return this.off( types, null, fn );
 	}
 
 	toJSON(){
@@ -700,6 +846,16 @@ class View {
 	}
 
 	// Internal methods
+	_getEl( options ){
+		var el = options.el || document.createElement("div");
+		//lookup element
+		if(typeof el == "string") el = document.querySelector( el );
+
+		return el;
+	}
+
+
+	// - render
 
 	_initRender(){
 		if( !this.options.autoRender ) return false;
@@ -723,10 +879,10 @@ class View {
 
 	_postRender(){
 		// make sure the container is presented
-		if( !this.options.silentRender ) $(this.el).show();
+		if( !this.options.silentRender ) this.el.style.display = 'block';
 		// remove loading state (if data has arrived)
 		if( !this.options.data || (this.options.data && !_.isEmpty(this._toJSON()) ) ){
-			$(this.el).removeClass("loading");
+			this.el.classList.remove("loading");
 			// set the appropriate flag
 			this.state.set("loaded", true);
 			// bubble up the event
@@ -764,9 +920,10 @@ class View {
 
 		} else if( typeof this.options.renderTarget == "string" ){
 
-			container = $(this.el).find(this.options.renderTarget).first();
+			container = this.el.querySelectorAll(this.options.renderTarget)[0];
 			if( !container.length ){
-				container = $(this.options.renderTarget).first(); // assume this always exists...
+				// assume this always exists...
+				container = document.querySelector(this.options.renderTarget);
 			}
 
 		} else if( typeof this.options.renderTarget == "object" ){
@@ -775,28 +932,27 @@ class View {
 
 		}
 
-		// convert into a jQuery object if needed
-		return ( container instanceof jQuery) ? container : $(container);
+		return container;
 
 	}
 
 	// checks if an element exists in the DOM
-	_inDOM( $el ){
+	_inDOM( el ){
 		// fallbacks
-		$el = $el || this.$el;
+		el = el || this.el;
 		// prerequisites
-		if( !$el ) return false;
+		if( !el ) return false;
 		// variables
 		var exists = false;
-		var parent = this.options.parentEl || "body";
+		var parent = document.querySelector( (this.options.parentEl || "body") );
 		// check parent element
-		exists = $(this.options.parentEl).find( $el ).length;
+		exists = parent.contains( el );
 		if( exists ) return true;
 		// el not in parent el
 		if( this.options.parentPrepend ){
-			$(parent).prepend( $el );
+			parent.prepend( el );
 		} else {
-			$(parent).append( $el );
+			parent.append( el );
 		}
 	}
 
@@ -1083,27 +1239,47 @@ class Layout extends View {
 class Template extends Model {
 
 	constructor( html, options ) {
+		// fallback(s)
+		options = options || (options={});
+		html = html || "";
+		//
+		super(options);
+
+		this.html = html;
+
 		this.initialize();
 	}
 
 	initialize(){
 		_.bindAll(this, 'fetch', 'parse');
 		// fallback for options
-		var opt = options || (options={});
+		var html = this.html;
 
 		if( !_.isEmpty(html) ){
 			this.set( "default", this.compile( html ) );
 			this.trigger("loaded");
 		}
 		//if( !_.isUndefined( options.url ) && !_.isEmpty( options.url ) ){
-		if( options.url ){
-			this.url = options.url;
+		if( this.options.url ){
+			this.url = this.options.url;
 			this.fetch();
 		}
 	}
 
 	compile( markup ){
-		return _.template( markup );
+
+		markup = markup.replace(/`/g, '\\`');
+		var template = function( data ){
+
+			const keys = Object.keys( data );
+			const fn = new Function(...keys, 'return `' + markup + '`');
+
+			return fn(...keys.map(key => data[key]));
+		};
+
+		//template.bind( this );
+
+		return template;
 	}
 
 	fetch(){
@@ -1130,7 +1306,7 @@ class Template extends Model {
 				// filter only scripts defined as template
 				var el = $(this);
 				if(el.attr("type").indexOf("template") >= 0){
-					// convention: the id sets the key for the tmeplate
+					// convention: the id sets the key for the template
 					self.set( el.attr("id"), self.compile( el.html() ) );
 				}
 			});
@@ -1138,6 +1314,20 @@ class Template extends Model {
 		this.trigger("loaded");
 		//return data;
 	}
+
+	/*
+	Fallbacks
+	} else if( url ) {
+		// fallback to the underscore template
+		$.get(url, function( html ){
+			self.template = _.template( html );
+			if( self.options.autoRender ) self.render();
+		});
+	} else {
+		this.template = _.template( html );
+		if( self.options.autoRender ) this.render();
+	}
+	*/
 
 }
 
@@ -1171,7 +1361,7 @@ class Utils {
 			for (var property in source){
 				if (source[property] && source[property].constructor && source[property].constructor === Object) {
 					destination[property] = destination[property] || {};
-					destination[property] = utils.extend.caller(destination[property], source[property]);
+					destination[property] = _.extend.caller(destination[property], source[property]);
 				} else {
 					destination[property] = source[property];
 				}
@@ -1186,8 +1376,92 @@ class Utils {
 		return typeof PhoneGap != "undefined" && typeof PhoneGap.init != "undefined" && typeof PhoneGap.env != "undefined"  && PhoneGap.env.app;
 	}
 
+/*
 	isUndefined( obj ){
 		return (typeof obj == "undefined");
+	}
+*/
+
+	// Source: https://www.30secondsofcode.org/js/s/bind-all/
+	bindAll( context, ...methods ){
+		methods.forEach(function( fn ){
+			let f = context[fn];
+			context[fn] = function() {
+				return f.apply(context);
+			};
+		});
+	}
+
+	// Source: https://locutus.io/php/var/empty/
+	isEmpty( mixedVar ){
+		let undef;
+		let key;
+		let i;
+		let len;
+		const emptyValues = [undef, null, false, 0, '', '0'];
+		for (i = 0, len = emptyValues.length; i < len; i++) {
+			if (mixedVar === emptyValues[i]) {
+				return true;
+			}
+		}
+		if (typeof mixedVar === 'object') {
+			for (key in mixedVar) {
+				if (mixedVar.hasOwnProperty(key)) {
+					return false;
+				}
+			}
+			return true;
+		}
+		return false;
+	}
+
+	getSiblings (elem) {
+
+		// Setup siblings array and get the first sibling
+		var siblings = [];
+		var sibling = elem.parentNode.firstChild;
+
+		// Loop through each sibling and push to the array
+		while (sibling) {
+			if (sibling.nodeType === 1 && sibling !== elem) {
+				siblings.push(sibling);
+			}
+			sibling = sibling.nextSibling;
+		}
+
+		return siblings;
+
+	}
+	// ---
+	// Underscore.js methods
+	// Source: http://underscorejs.org/
+
+	isNull(obj) {
+		return obj === null;
+	}
+
+	isUndefined( obj ){
+		return obj === void 0;
+	}
+
+	// Traverses the children of `obj` along `path`. If a child is a function, it
+	// is invoked with its parent as context. Returns the value of the final
+	// child, or `fallback` if any child is undefined.
+	result( obj, path, fallback ){
+		path = ( Array.isArray(path) ) ? path : [path];
+		var length = path.length;
+		if (!length) {
+			return (typeof fallback === 'function') ? fallback.call(obj) : fallback;
+		}
+		for (var i = 0; i < length; i++) {
+			var prop = obj == null ? void 0 : obj[path[i]];
+			if (prop === void 0) {
+				prop = fallback;
+				i = length; // Ensure we don't continue iterating.
+			}
+			obj = (typeof prop === 'function') ? prop.call(obj) : prop;
+		}
+		return obj;
 	}
 
 }
@@ -1208,14 +1482,6 @@ class APP {
 
 		// internal
 		this._routes = [];
-
-		// Namespace containers
-		this.Models = {};
-		this.Controllers = {};
-		this.Collections = {};
-		this.Views = {};
-		this.Layouts = {};
-		this.Templates = {};
 
 		// get config
 		var options = arguments[0] || {};
@@ -1263,16 +1529,18 @@ class APP {
 			return APP;
 
 		} else {
+			// default controller
+			var defaultController = (APP.Controllers.Default) ? APP.Controllers.Default : Controller;
 			// find a controller based on the path
 			for(var i in path ){
 				// discart the first item if it's empty
 				if( path[i] === "") continue;
 				controller = (path[i].charAt(0).toUpperCase() + path[i].slice(1));
 				// stop if we've found a controller
-				if(typeof(this.Controllers[controller]) == "function") break;
+				if(typeof(APP.Controllers[controller]) == "function") break;
 			}
 			// call the controller or fallback to the default
-			var route = (controller && this.Controllers[controller]) ? new this.Controllers[controller]( options ) : new Controller( options );
+			var route = (controller && APP.Controllers[controller]) ? new APP.Controllers[controller]( options ) : new defaultController( options );
 			// return controller so it's accessible through the app global
 			return route;
 		}
@@ -1298,7 +1566,7 @@ class APP {
 	 */
 	ready( callback ){
 
-		if( utils.isPhonegap() ){
+		if( _.isPhonegap() ){
 			return PhoneGap.init( callback );
 
 		} else if( $ ) {
@@ -1327,9 +1595,18 @@ APP.Controller = Controller;
 APP.Collection = Collection;
 APP.Layout = Layout;
 
+// Namespace containers
+APP.Models = {};
+APP.Controllers = {};
+APP.Collections = {};
+APP.Views = {};
+APP.Layouts = {};
+APP.Templates = {};
 
 
-var utils = new Utils();
+// Initialize utilities
+// convention carried from the legacy underscore.js
+var _ = new Utils();
 
 if ( window ) window.APP = APP;
 
