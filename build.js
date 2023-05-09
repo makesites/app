@@ -49,6 +49,7 @@ var src = [
 	'lib/model.js',
 	'lib/view.js',
 	'lib/layout.js',
+	'lib/session.js',
 	'lib/template.js',
 	'lib/utils.js',
 	'lib/app.js'
