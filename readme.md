@@ -8,9 +8,10 @@ A JavaScript class that creates a client-side app skeleton with popular methods,
 ## Features
 
 * ES6 compliant (no fallbacks)
-* Router
-* HTML fragments
-
+* MVC architecture
+* URL Router that maps logic to set path(s)
+* Template system using HTML fragments
+* Helpful class utils
 
 ## Build
 
