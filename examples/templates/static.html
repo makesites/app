@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>APP :: Templates</title>
+<link rel="shortcut icon" href="#">
+
+<script type="module">
+import { APP, View } from '/build/app.js';
+
+var template = document.getElementsByTagName("template")[0];
+
+let view  = new View({
+	el: "#main",
+	html: template.innerHTML
+});
+
+</script>
+
+</head>
+<body>
+
+<h1>APP :: Templates</h1>
+
+<p>A view that is a simple HTML fragment, pulled from a template tag</p>
+
+<div id="main"><!-- --></div>
+
+<template>
+	<h2>A Title</h2>
+	<p>A small description that works as a tagline</p>
+</template>
+
+</body>
+</html>
