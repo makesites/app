@@ -7,7 +7,7 @@
 // - Conventions:
 // * code is in a lib/ folder with a main.js as the main context (closure)
 // * a package.json on the root contains all the info about the lib: name, description, author, license
-// * compiled files are saved in a build folder
+// * compiled files are saved in a dist folder
 
 // settings
 var FILE_ENCODING = 'utf-8',
@@ -39,9 +39,7 @@ var name = "app"; //package.name;
 // - concatinate all files
 var src = [
 	// third-party helpers
-	//'deps/backbone.easing.js',
-	//'deps/backbone.analytics.js',
-	//'deps/backbone.extender.js',
+	//'deps/...',
 	// main lib
 	'lib/base.js',
 	'lib/collection.js',
@@ -58,15 +56,15 @@ var src = [
 // - concatinate all files
 concat({
 	src: src,
-	dest: 'build/'+ name +'.js'
+	dest: 'dist/'+ name +'.js'
 });
 
 
 // - Validate js
-lint('build/'+ name +'.js', function(){
+lint('dist/'+ name +'.js', function(){
 
 	// - Create / save minified file
-	minify('build/'+ name +'.js', 'build/'+ name +'.min.js');
+	minify('dist/'+ name +'.js', 'dist/'+ name +'.min.js');
 
 });
 
@@ -107,7 +105,7 @@ function minify(srcPath, distPath) {
 			comments : /@name|@author|@cc_on|@url|@license/
 		},
 		//sourceMap: {
-		//	filename: "build/app.min.js.map",
+		//	filename: "dist/app.min.js.map",
 		//	url: "app.min.js.map"
 		//},
 		//ecma: 8,
