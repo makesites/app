@@ -2,7 +2,7 @@
  * @name @makesites/app
  * 
  *
- * Version: 0.5.5 (Tue, 09 May 2023 06:06:09 GMT)
+ * Version: 0.5.5 (Tue, 17 Dec 2024 12:15:04 GMT)
  * Source: 
  *
  * @author makesites
@@ -1556,11 +1556,15 @@ class Template extends Model {
 
 	compile( markup ){
 
-		markup = markup.replace(/`/g, '\\`');
+		var cleanMarkup = this._sanitize( markup );
+
+		// escape single quotes so they don't escape the next function prematurely
+		cleanMarkup = cleanMarkup.replace(/`/g, '\\`');
+		// main function
 		var template = function( data ){
 
 			const keys = Object.keys( data );
-			const fn = new Function(...keys, 'return `' + markup + '`');
+			const fn = new Function(...keys, 'return `' + cleanMarkup + '`');
 
 			return fn(...keys.map(key => data[key]));
 		};
@@ -1601,6 +1605,25 @@ class Template extends Model {
 		}
 		this.trigger("loaded");
 		//return data;
+	}
+
+	// internal methods
+	_sanitize( html ) {
+		// prerequisites
+		if( !_.isString(html) ) return false;
+		// variables
+		const replaceTags = {
+			'&': '&amp;',
+			'<': '&lt;',
+			'>': '&gt;',
+			'(': '%28',
+			')': '%29'
+		};
+
+		const output = text => text.toString().replace(/[&<>\(\)]/g, tag =>
+		replaceTags[tag] || tag);
+
+		return output;
 	}
 
 	/*
@@ -1658,6 +1681,13 @@ class Utils {
 		return destination;
 	}
 
+	uuid(){
+		return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+			var r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
+			return v.toString(16);
+		});
+	}
+
 	// - Support Phonegap Shim: https://github.com/makesites/phonegap-shim
 	isPhonegap(){
 		// only execute in app mode?
@@ -1701,6 +1731,10 @@ class Utils {
 			return true;
 		}
 		return false;
+	}
+
+	isString( v ){
+		return (typeof v == "string");
 	}
 
 	getSiblings (elem) {
