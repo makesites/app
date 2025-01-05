@@ -42,10 +42,11 @@ var src = [
 	//'deps/...',
 	// main lib
 	'lib/base.js',
-	'lib/collection.js',
-	'lib/controller.js',
 	'lib/model.js',
 	'lib/view.js',
+	'lib/controller.js',
+	'lib/events.js',
+	'lib/collection.js',
 	'lib/layout.js',
 	'lib/session.js',
 	'lib/template.js',
