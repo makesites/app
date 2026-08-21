@@ -13,7 +13,7 @@
 	],
 	"license": "MPL v2.0, AGPL",
 	"repository" : "http://github.com/makesites/app",
-	"main": ["./build/app.js"],
+	"main": ["./dist/app.js"],
 	"ignore": [
 		"bower_components",
 		"components",
@@ -22,8 +22,6 @@
 	"dependencies": {
 		"jquery": "*",
 		"handlebars": "*",
-		"system.js": "*",
-		"underscore": "*",
 		"vanilla-query": "*",
 		"webcomponentsjs": "*"
 	}
