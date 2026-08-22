@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.7.0 (Sun, 23 Aug 2026 02:02:14 GMT)
+ * Version: 0.7.0 (Sun, 23 Aug 2026 02:23:25 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -2663,21 +2663,25 @@ function configureSync( config ){
  * @property {*} [data] - raw request body (bypasses JSON serialisation)
  * @property {Object} [attrs] - attributes to send (defaults to model.toJSON())
  * @property {Object} [fetchOptions] - passed through to fetch() (credentials, signal, ...)
+ * @property {number} [timeout] - ms after which the request auto-aborts
+ * @property {AbortSignal} [signal] - wire the request to your own controller
+ * @property {number} [retry] - retry count for transient read failures (default 0)
+ * @property {number} [retryDelay] - base backoff in ms (default 300)
  * @property {function(*, string, Response=):void} [success]
  * @property {function(Error, string, Response=):void} [error]
  */
 
 /**
- * Persist a model/collection to the server via the native fetch() API. Returns a
- * Promise and still fires the success/error callbacks + request/error events.
+ * Perform a single native fetch() request: assemble → fetch → parse → check →
+ * cache-on-success → success callback. Throws the raw error on failure; the
+ * retry / cache-fallback / error-event handling lives in sync() so it happens
+ * once per call rather than once per network attempt.
  * @param {("create"|"read"|"update"|"patch"|"delete")} method
- * @param {Base} model - a Model or Collection
- * @param {SyncOptions} [options]
+ * @param {Base} model
+ * @param {SyncOptions} options
  * @returns {Promise<*>}
  */
-async function sync( method, model, options ){
-	// fallback(s)
-	options = options || {};
+async function _syncRequest( method, model, options ){
 	var type = methodMap[ method ];
 
 	// assemble the request
@@ -2716,6 +2720,8 @@ async function sync( method, model, options ){
 	// cancellation / timeout via AbortController. Pass options.signal to wire the
 	// request to your own controller, or options.timeout (ms) to auto-abort. The
 	// created controller is exposed as options.controller so you can abort early.
+	// A fresh controller/timer is created per attempt so every retry gets a full
+	// timeout budget.
 	var timer;
 	if( typeof AbortController !== "undefined" ){
 		if( options.signal ){
@@ -2727,9 +2733,6 @@ async function sync( method, model, options ){
 			timer = setTimeout(function(){ controller.abort(); }, options.timeout );
 		}
 	}
-
-	// let listeners know a request is under way (parity with Backbone)
-	model.trigger("request", model, null, options);
 
 	try {
 		// execute the native request
@@ -2768,26 +2771,72 @@ async function sync( method, model, options ){
 
 		return responseData;
 
-	} catch( error ){
-		// CACHE: on a failed read, transparently fall back to the local cache
-		// so the UI can still render while offline (stale-while-revalidate).
-		if( method === "read" && model.options && model.options.cache && typeof model.cache === "function" ){
-			var cached = model.cache();
-			var hasData = Array.isArray( cached ) ? cached.length > 0 : ( cached && Object.keys( cached ).length > 0 );
-			if( hasData ){
-				if( options.success ) options.success( cached, "success-from-cache", null );
-				return cached;
-			}
-		}
-		// fire the error callback
-		if( options.error ) options.error( error, error.statusText, error.response );
-		// bubble up a global error event
-		model.trigger("error", model, error, options);
-		// re-throw so callers awaiting the promise can catch it
-		throw error;
 	} finally {
 		// clear the timeout timer regardless of outcome
 		if( timer ) clearTimeout( timer );
+	}
+}
+
+/**
+ * Persist a model/collection to the server via the native fetch() API. Returns a
+ * Promise and still fires the success/error callbacks + request/error events.
+ *
+ * Opt-in retry: pass `options.retry` (a count) to retry *transient* failures
+ * with exponential backoff + jitter. Retries are gated to safe reads and genuine
+ * network errors — an HTTP status (4xx/5xx) or an abort (timeout / caller cancel)
+ * is never retried. Tune the base delay with `options.retryDelay` (ms, default
+ * 300). The default `retry: 0` preserves the original single-attempt behaviour.
+ * @param {("create"|"read"|"update"|"patch"|"delete")} method
+ * @param {Base} model - a Model or Collection
+ * @param {SyncOptions} [options]
+ * @returns {Promise<*>}
+ */
+async function sync( method, model, options ){
+	// fallback(s)
+	options = options || {};
+	var retries = options.retry || 0;
+	var base = options.retryDelay || 300;
+	var attempt = 0;
+
+	// let listeners know a request is under way (parity with Backbone) — once,
+	// regardless of how many network attempts follow
+	model.trigger("request", model, null, options);
+
+	while( true ){
+		try {
+			return await _syncRequest( method, model, options );
+		} catch( error ){
+			// retry only genuine network failures on safe reads: an HTTP status
+			// (4xx/5xx) or an abort is never retried
+			var retriable = method === "read"
+				&& error.name !== "AbortError"
+				&& error.status == null;
+			if( retriable && attempt < retries ){
+				// exponential backoff with jitter: base·2^n + rand·base
+				var delay = base * Math.pow( 2, attempt ) + Math.random() * base;
+				attempt++;
+				await new Promise(function( resolve ){ setTimeout( resolve, delay ); });
+				// honour a cancellation requested between tries
+				if( !( options.signal && options.signal.aborted ) ) continue;
+			}
+
+			// CACHE: on a failed read, transparently fall back to the local cache
+			// so the UI can still render while offline (stale-while-revalidate).
+			if( method === "read" && model.options && model.options.cache && typeof model.cache === "function" ){
+				var cached = model.cache();
+				var hasData = Array.isArray( cached ) ? cached.length > 0 : ( cached && Object.keys( cached ).length > 0 );
+				if( hasData ){
+					if( options.success ) options.success( cached, "success-from-cache", null );
+					return cached;
+				}
+			}
+			// fire the error callback
+			if( options.error ) options.error( error, error.statusText, error.response );
+			// bubble up a global error event
+			model.trigger("error", model, error, options);
+			// re-throw so callers awaiting the promise can catch it
+			throw error;
+		}
 	}
 }
 
