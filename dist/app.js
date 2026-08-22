@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.7.0 (Sun, 22 Aug 2026 13:48:39 GMT)
+ * Version: 0.7.0 (Sat, 22 Aug 2026 13:53:26 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -37,6 +37,13 @@ class Base {
 		return this.on( name, cb, context );
 	}
 
+	/**
+	 * Subscribe to an event. Supports space-separated names ("add remove").
+	 * @param {string} name - event name(s)
+	 * @param {Function} callback
+	 * @param {Object} [context] - `this` inside the callback (defaults to this object)
+	 * @returns {this}
+	 */
 	on( name, callback, context ){
 		if( !callback ) return this;
 		this._events || (this._events = {});
@@ -85,6 +92,12 @@ class Base {
 		return this;
 	}
 
+	/**
+	 * Emit an event, passing any extra arguments to the listeners.
+	 * @param {string} name - event name(s)
+	 * @param {...*} args - forwarded to each listener
+	 * @returns {this}
+	 */
 	trigger( name ){
 		if( !this._events ) return this;
 		var args = Array.prototype.slice.call( arguments, 1 );
@@ -111,6 +124,14 @@ class Base {
 	// Inversion-of-control listening. Tell *this* object to listen to another
 	// object's events (bound to this context) and remember the binding so it can
 	// be torn down in one call - crucial for avoiding leaks when views are removed.
+	/**
+	 * Listen to another object's event, tracked so it can be torn down via
+	 * {@link Base#stopListening} (e.g. when a view is removed).
+	 * @param {Base} obj - the object to observe
+	 * @param {string} name - event name(s)
+	 * @param {Function} callback - runs with THIS object as context
+	 * @returns {this}
+	 */
 	listenTo( obj, name, callback ){
 		if( !obj ) return this;
 		var listeningTo = this._listeningTo || (this._listeningTo = []);
@@ -273,7 +294,14 @@ class Router extends Base {
 		}
 	}
 
-	// Manually create a route for the router.
+	/**
+	 * Register a route. `route` may be a pattern string (":id", "*splat",
+	 * "(/optional)") or a RegExp.
+	 * @param {(string|RegExp)} route
+	 * @param {(string|Function)} name - handler name, or the handler itself
+	 * @param {Function} [callback]
+	 * @returns {this}
+	 */
 	route( route, name, callback ){
 		if( !(route instanceof RegExp) ) route = this._routeToRegExp( route );
 		if( typeof name === "function" ){
@@ -293,13 +321,24 @@ class Router extends Base {
 		return this;
 	}
 
-	// Execute a route handler with the provided parameters. Override to add
-	// pre/post-route logic (e.g. route guards) - returning `false` cancels.
+	/**
+	 * Run a matched route handler. Override to add pre/post logic (e.g. auth
+	 * guards); return `false` to cancel the route.
+	 * @param {Function} callback
+	 * @param {Array} args - extracted route params
+	 * @param {string} [name]
+	 * @returns {(boolean|void)}
+	 */
 	execute( callback, args, name ){
 		if( callback ) callback.apply( this, args );
 	}
 
-	// Simple proxy to `history` to save a fragment into the history.
+	/**
+	 * Navigate to a URL fragment via history.
+	 * @param {string} fragment
+	 * @param {{trigger?: boolean, replace?: boolean}} [options]
+	 * @returns {this}
+	 */
 	navigate( fragment, options ){
 		history.navigate( fragment, options );
 		return this;
@@ -535,7 +574,11 @@ class Model extends Base {
 		this.set( data );
 	}
 
-	// Get the value of an attribute.
+	/**
+	 * Get the value of an attribute.
+	 * @param {string} attr
+	 * @returns {*}
+	 */
 	get( attr ){
 		return this.attributes[attr];
 	}
@@ -544,8 +587,14 @@ class Model extends Base {
 		return this.get(attr) != null;
 	}
 
-	// Set a hash of model attributes on the object, firing `"change"`.
-	// Based on Backbone.js Model.set
+	/**
+	 * Set attribute(s), firing `change:<attr>` then `change` for what actually
+	 * changed. Accepts `(key, value)` or `({key: value})`.
+	 * @param {(string|Object)} key - attribute name, or a {attr: value} hash
+	 * @param {*} [val] - value (when key is a string)
+	 * @param {{silent?: boolean}} [options]
+	 * @returns {this}
+	 */
 	set( key, val, options ){
 		if (key == null) return this;
 
@@ -655,7 +704,11 @@ class Model extends Base {
 		return !this.has("id");
 	}
 
-	// fetch the model from the server
+	/**
+	 * Fetch the model from the server (GET) and apply the response.
+	 * @param {SyncOptions} [options]
+	 * @returns {Promise<*>}
+	 */
 	fetch( options ){
 		options = options || {};
 		var self = this;
@@ -669,7 +722,12 @@ class Model extends Base {
 		return this.sync("read", this, options);
 	}
 
-	// save the model to the server (create or update based on isNew)
+	/**
+	 * Save the model to the server (POST when new, else PUT/PATCH).
+	 * @param {Object} [attrs] - attributes to set before saving
+	 * @param {SyncOptions} [options]
+	 * @returns {Promise<*>}
+	 */
 	save( attrs, options ){
 		options = options || {};
 		// optimistically set the attributes locally
@@ -874,8 +932,11 @@ class View extends Base {
 	preRender(){
 	}
 
-	// Render view
-	// placing markup in the DOM
+	/**
+	 * Render the view's template into its element (or renderTarget). Override for
+	 * custom rendering.
+	 * @returns {void}
+	 */
 	render(){
 		// prerequisite
 		if( !this.template ) return;
@@ -1161,7 +1222,11 @@ class View extends Base {
 		this.observer.observe( this.el );
 	}
 
-	// tidy up the view: drop event bindings, stop observing, detach from the DOM
+	/**
+	 * Tear the view down: drop all listenTo bindings, stop the visibility
+	 * observer, and detach the element from the DOM.
+	 * @returns {this}
+	 */
 	remove(){
 		// remove all listenTo bindings (data, template, ...) to avoid leaks
 		this.stopListening();
@@ -1474,7 +1539,12 @@ class Collection extends Base {
 
 	}
 
-	// adds one - or many - models to the collection
+	/**
+	 * Add one model/object, or an array of them. Plain objects are wrapped in
+	 * `this.model`.
+	 * @param {(Object|Model|Array)} data
+	 * @returns {(Model|void)} the added model (single add)
+	 */
 	add( data ) {
 		// support adding multiple models at once
 		if( Array.isArray( data ) ){
@@ -1528,7 +1598,11 @@ class Collection extends Base {
 		return this.sync("read", this, options);
 	}
 
-	// retrieve a single model
+	/**
+	 * Retrieve a single model by array index, id, name, or cid.
+	 * @param {(number|string)} key
+	 * @returns {?Model}
+	 */
 	get( key ) {
 		// if the key is an integer return the item with that "array" index
 		if( Number.isInteger( key ) ) {
@@ -2328,9 +2402,25 @@ function configureSync( config ){
 	return _.extend( syncConfig, config || {} );
 }
 
-// Persists the state of a model/collection to the server using the native
-// fetch() API. Returns a Promise that resolves with the parsed response and
-// still fires the legacy success/error callbacks the components rely on.
+/**
+ * @typedef {Object} SyncOptions
+ * @property {string} [url] - overrides the model/collection url
+ * @property {Object} [headers] - extra request headers
+ * @property {*} [data] - raw request body (bypasses JSON serialisation)
+ * @property {Object} [attrs] - attributes to send (defaults to model.toJSON())
+ * @property {Object} [fetchOptions] - passed through to fetch() (credentials, signal, ...)
+ * @property {function(*, string, Response=):void} [success]
+ * @property {function(Error, string, Response=):void} [error]
+ */
+
+/**
+ * Persist a model/collection to the server via the native fetch() API. Returns a
+ * Promise and still fires the success/error callbacks + request/error events.
+ * @param {("create"|"read"|"update"|"patch"|"delete")} method
+ * @param {Base} model - a Model or Collection
+ * @param {SyncOptions} [options]
+ * @returns {Promise<*>}
+ */
 async function sync( method, model, options ){
 	// fallback(s)
 	options = options || {};
@@ -2759,6 +2849,10 @@ const KeysMixin = ( BaseClass ) => class extends BaseClass {
 
 class Events extends Base {
 
+	/**
+	 * @param {string} [name="app"] - channel/topic namespace (also the BroadcastChannel name)
+	 * @param {{broadcast?: boolean}} [options] - set broadcast:false to disable cross-tab
+	 */
 	constructor( name, options ){
 		// fallback(s)
 		options = options || {};
@@ -2778,7 +2872,13 @@ class Events extends Base {
 		}
 	}
 
-	// publish an event: deliver to local listeners and (optionally) other tabs
+	/**
+	 * Publish an event: deliver to local listeners now, then mirror to other tabs
+	 * via BroadcastChannel (structured-cloned; non-cloneable payloads stay local).
+	 * @param {string} name
+	 * @param {...*} args
+	 * @returns {this}
+	 */
 	trigger( name ){
 		var args = Array.prototype.slice.call( arguments, 1 );
 		// local, same-tab delivery
@@ -3126,12 +3226,25 @@ class Views {
 }
 
 
-// Application facade
-// `new APP()` returns THIS object (not the controller). Its sub-objects -
-// events, state, views, session - are ready synchronously; the router is
-// resolved asynchronously, so await `app.ready` before using `app.router`.
+/**
+ * Application facade. `new APP()` returns this object; its sub-objects
+ * (events/state/views/session) are ready synchronously, while `router` resolves
+ * asynchronously - await {@link APP#ready}.
+ * @property {Events} events - the shared, decoupled, cross-tab event bus
+ * @property {Object} state - device/environment state (online, touch, mobile, ...)
+ * @property {Views} views - registry of mounted views
+ * @property {?Session} session - the app session (when options.session is set)
+ * @property {?Controller} router - the resolved controller (available after `ready`)
+ * @property {Promise<APP>} ready - resolves once the router is loaded
+ */
 class APP {
 
+	/**
+	 * @param {Object} [options]
+	 * @param {boolean} [options.pushState] - use the History pushState API
+	 * @param {string[]} [options.controllers] - controller names available to lazy-import
+	 * @param {Object} [options.session] - session config (enables app.session)
+	 */
 	constructor( options ) {
 		// fallback(s)
 		options = ( options && typeof options === "object" ) ? options : {};
