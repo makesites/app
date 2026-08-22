@@ -52,6 +52,7 @@
 	},
 	"scripts": {
 		"build": "./build/index.js",
-		"test": "node --test"
+		"test": "node --test",
+		"coverage": "node --test --experimental-test-coverage"
 	}
 }
