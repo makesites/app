@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.7.0 (Sun, 23 Aug 2026 01:32:59 GMT)
+ * Version: 0.7.0 (Sun, 23 Aug 2026 01:36:47 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -1822,17 +1822,15 @@ class Collection extends Base {
 		this.trigger.apply( this, args );
 	}
 
-	// to add multiple models
-	save(models, options){
-		// merge models
-		_.extend(this.models, models);
-		// callback is run once, after all models have saved.
-		if( options.success ){
-			var callback = _.after(this.models.length, options.success);
-			_.each( this.models, function( model ){
-				model.save(null, {success: callback});
-			});
-		}
+	/**
+	 * Save every model in the collection. Resolves when all have saved.
+	 * @param {SyncOptions} [options]
+	 * @returns {Promise<Array>}
+	 */
+	save( options ){
+		options = options || {};
+		var promises = this.data.map(function( model ){ return model.save( null, options ); });
+		return Promise.all( promises );
 	}
 
 	// Sync
@@ -2715,6 +2713,21 @@ async function sync( method, model, options ){
 		params.body = options.data;
 	}
 
+	// cancellation / timeout via AbortController. Pass options.signal to wire the
+	// request to your own controller, or options.timeout (ms) to auto-abort. The
+	// created controller is exposed as options.controller so you can abort early.
+	var timer;
+	if( typeof AbortController !== "undefined" ){
+		if( options.signal ){
+			params.signal = options.signal;
+		} else if( options.timeout ){
+			var controller = new AbortController();
+			params.signal = controller.signal;
+			options.controller = controller;
+			timer = setTimeout(function(){ controller.abort(); }, options.timeout );
+		}
+	}
+
 	// let listeners know a request is under way (parity with Backbone)
 	model.trigger("request", model, null, options);
 
@@ -2772,6 +2785,9 @@ async function sync( method, model, options ){
 		model.trigger("error", model, error, options);
 		// re-throw so callers awaiting the promise can catch it
 		throw error;
+	} finally {
+		// clear the timeout timer regardless of outcome
+		if( timer ) clearTimeout( timer );
 	}
 }
 

@@ -99,17 +99,22 @@ await book.save();                  // validates, then PUT (or POST when new)
 ```
 
 `Collection` proxies native array methods to its models
-(`map`, `filter`, `reduce`, `find`, `some`, `every`, `pluck`, `where`, ...):
+(`map`, `filter`, `reduce`, `find`, `some`, `every`, `pluck`, `where`, ...), keeps
+an id/cid index, stays sorted by a `comparator`, and forwards its members' events.
 
 ```javascript
 class Library extends Collection {
   get url(){ return "/api/books"; }
+  get comparator(){ return "title"; }         // keep sorted by title
 }
 
-const library = new Library();
-await library.fetch();
-const titles = library.pluck("title");
-const active = library.filter(book => book.get("active"));
+const library = new Library([{ id: 1, title: "B" }]);
+library.on("add", (book) => console.log("added", book.get("title")));
+library.on("change", (book) => console.log("a member changed"));
+await library.fetch();                         // set()s the response (merge + remove)
+library.add({ id: 9, title: "A" });            // deduped by id, inserted in order
+library.get(9).set({ read: true });            // fires the collection's "change"
+library.remove(9);
 ```
 
 ### View
@@ -258,12 +263,17 @@ Controller/Router, the Events bus, Template (pluggable compiler), `sync`, cache,
 Backbone/jQuery/Underscore and covered by a test suite. No jQuery, Underscore or
 Backbone remain in `lib/`.
 
-Known rough edges (on the roadmap):
+The core is feature-complete and covered by a test suite (`npm test`): the APP
+facade; Model (attribute defaults, validation, change tracking, `idAttribute`,
+`urlRoot`); Collection (smart `set` with add/remove/merge, `comparator`/`sort`,
+`remove`/`reset`, id index, model-event forwarding); the native Router/History;
+the Events bus; Template (pluggable/CSP compiler); `sync` (with `AbortController`
+cancel/timeout); cache; Session; Layout; and the input mixins. Subclass
+`routes`/`events`/`states`/`defaults` getters work. No jQuery, Underscore or
+Backbone remain in `lib/`.
 
-* Collection completeness (comparator/sort, `remove`, smart `set`/dedup,
-  model-event forwarding) and `sync` cancellation (`AbortController`) are the last
-  pieces still to come. (Model — attribute defaults, validation, change tracking,
-  `idAttribute`, `urlRoot` — and subclass getters are done.)
+Nice-to-haves, not blocking: CI wiring, `sync` retry/backoff, and deeper Underscore
+parity on Collection (`groupBy`/`countBy`).
 
 
 ## Credits
