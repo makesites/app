@@ -85,14 +85,17 @@ Observable data with a native `fetch()`-based sync layer.
 
 ```javascript
 class Book extends Model {
-  get url(){ return "/api/books/" + this.get("id"); }
+  get defaults(){ return { title: "", read: false }; }   // attribute defaults
+  get urlRoot(){ return "/api/books"; }                   // url = urlRoot + "/" + id
+  validate(attrs){ if (!attrs.title) return "title required"; }
 }
 
 const book = new Book({ id: 1 });
-await book.fetch();                 // GET, returns a Promise
-book.on("change:title", (m, v) => console.log("new title:", v));
-book.set("title", "A Modern JS Guide");
-await book.save();                  // POST/PUT depending on isNew()
+book.on("change:read", (m, read) => console.log("read?", read));
+await book.fetch();                 // GET /api/books/1
+book.set({ read: true });
+console.log(book.hasChanged("read"), book.previous("read"));  // true, false
+await book.save();                  // validates, then PUT (or POST when new)
 ```
 
 `Collection` proxies native array methods to its models
@@ -257,12 +260,10 @@ Backbone remain in `lib/`.
 
 Known rough edges (on the roadmap):
 
-* Subclass `routes` / `events` / `states` getters now work; a `get defaults()` on a
-  **Model** (attribute defaults) is the remaining one — landing next.
-* Model completeness (attribute defaults, validation hooks,
-  `previous()`/`changedAttributes()`) and Collection completeness (comparator/sort,
-  `remove`, smart `set`/dedup) plus `sync` cancellation (`AbortController`) are
-  still to come.
+* Collection completeness (comparator/sort, `remove`, smart `set`/dedup,
+  model-event forwarding) and `sync` cancellation (`AbortController`) are the last
+  pieces still to come. (Model — attribute defaults, validation, change tracking,
+  `idAttribute`, `urlRoot` — and subclass getters are done.)
 
 
 ## Credits

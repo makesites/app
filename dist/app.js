@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.7.0 (Sun, 23 Aug 2026 00:15:43 GMT)
+ * Version: 0.7.0 (Sun, 23 Aug 2026 00:34:41 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -539,11 +539,6 @@ class Model extends Base {
 	constructor( model, options={} ) {
 		super( options );
 
-		this.defaults = {
-			autofetch: false,
-			cache: false
-		};
-
 		this.attributes = {};
 		// change tracking
 		this.changed = {};
@@ -551,15 +546,24 @@ class Model extends Base {
 		// the attribute that holds the id (subclass may override via get idAttribute())
 		if( typeof this.idAttribute === "undefined" ) this.idAttribute = "id";
 
-		// save options for later
+		// framework option defaults (autofetch/cache) are kept internal, so a
+		// subclass `defaults` means ATTRIBUTE defaults (Backbone semantics)
 		options = options || {};
-		this.options = _.extend({}, this.defaults, options);
-		// set data if given
-		if( typeof model == "object" ) this.set( model );
+		this.options = _.extend({}, this._optionDefaults(), options);
+
+		// seed attributes from the class `defaults` (getter/property); the passed
+		// model overrides them
+		var attrs = _.extend({}, _.result(this, 'defaults'), (model && typeof model === "object") ? model : {});
+		this.set( attrs );
 
 		this.cid = _.uniqueId("model");
 
 		this.initialize();
+	}
+
+	// framework option defaults (internal - not the model's attribute `defaults`)
+	_optionDefaults(){
+		return { autofetch: false, cache: false };
 	}
 
 	// initialization
@@ -714,9 +718,9 @@ class Model extends Base {
 		return _.extend({}, this._previousAttributes);
 	}
 
-	// #63 reset model to its default values
+	// #63 reset model to its (attribute) default values
 	reset(){
-		return this.clear().set(this.defaults);
+		return this.clear().set( _.result(this, 'defaults') );
 	}
 
 	// remove all attributes from the model (firing "change")
@@ -767,6 +771,15 @@ class Model extends Base {
 
 	sync( method, model, options ){
 		return sync( method, model, options );
+	}
+
+	// Default URL: `urlRoot` (or the owning collection's url) + "/" + id.
+	// Override with a `url` string/getter, or a `urlRoot` string/getter.
+	url(){
+		var base = _.result( this, 'urlRoot' ) || ( this.collection && _.result( this.collection, 'url' ) ) || null;
+		if( !base ) return null;
+		if( this.isNew() ) return base;
+		return base.replace(/\/$/, "") + "/" + encodeURIComponent( this.get( this.idAttribute ) );
 	}
 
 	// a model is considered "new" until it has been assigned an id
