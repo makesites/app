@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.7.0 (Sun, 23 Aug 2026 02:23:25 GMT)
+ * Version: 0.7.0 (Sun, 23 Aug 2026 02:28:28 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -1945,6 +1945,102 @@ class Collection extends Base {
 
 	isEmpty(){
 		return this.length === 0;
+	}
+
+	// Underscore-style aggregation helpers (native over this.data)
+	// ------------------------------------------------------------
+	// The grouping/aggregating helpers Backbone inherited from Underscore, kept
+	// as thin native implementations. An "iteratee" is either an attribute-name
+	// string (resolved via model.get) or a function called with the model.
+
+	// normalise an iteratee to a function(model) -> value
+	_iteratee( iter ){
+		if( iter == null ) return function( model ){ return model; };
+		if( typeof iter === "string" ) return function( model ){ return model.get( iter ); };
+		return iter;
+	}
+
+	// shared bucketing engine: apply `behavior(result, key, model)` per model
+	_group( iter, behavior ){
+		var fn = this._iteratee( iter ), result = {};
+		this.forEach(function( model ){
+			behavior( result, fn.call( this, model ), model );
+		}, this );
+		return result;
+	}
+
+	// group the models into arrays keyed by the iteratee result
+	groupBy( iter ){
+		return this._group( iter, function( result, key, model ){
+			( result[ key ] || ( result[ key ] = [] ) ).push( model );
+		});
+	}
+
+	// count the models keyed by the iteratee result
+	countBy( iter ){
+		return this._group( iter, function( result, key ){
+			result[ key ] = ( result[ key ] || 0 ) + 1;
+		});
+	}
+
+	// a stably-sorted *copy* of the models, ascending by the iteratee result.
+	// Non-destructive — unlike sort(), which reorders this.data in place.
+	sortBy( iter ){
+		var fn = this._iteratee( iter ), self = this;
+		return this.slice()
+			.map(function( model, index ){ return { model: model, key: fn.call( self, model ), index: index }; })
+			.sort(function( a, b ){
+				if( a.key !== b.key ) return ( a.key < b.key ) ? -1 : 1;
+				return a.index - b.index;   // keep equal keys in original order
+			})
+			.map(function( entry ){ return entry.model; });
+	}
+
+	// call a named method on every model, returning the array of results
+	invoke( method ){
+		var args = Array.prototype.slice.call( arguments, 1 );
+		return this.map(function( model ){
+			var fn = ( model == null ) ? null : model[ method ];
+			return fn ? fn.apply( model, args ) : undefined;
+		});
+	}
+
+	// split the models into [ pass, fail ] by a predicate(model)
+	partition( predicate ){
+		var pass = [], fail = [];
+		this.forEach(function( model ){ ( predicate( model ) ? pass : fail ).push( model ); });
+		return [ pass, fail ];
+	}
+
+	// the model with the smallest iteratee result (undefined when empty)
+	min( iter ){
+		var fn = this._iteratee( iter ), result, best = Infinity;
+		this.forEach(function( model ){
+			var value = fn.call( this, model );
+			if( value < best ){ best = value; result = model; }
+		}, this );
+		return result;
+	}
+
+	// the model with the largest iteratee result (undefined when empty)
+	max( iter ){
+		var fn = this._iteratee( iter ), result, best = -Infinity;
+		this.forEach(function( model ){
+			var value = fn.call( this, model );
+			if( value > best ){ best = value; result = model; }
+		}, this );
+		return result;
+	}
+
+	// a random model, or an array of `n` distinct random models (Fisher–Yates)
+	sample( n ){
+		if( n == null ) return this.data[ Math.floor( Math.random() * this.length ) ];
+		var copy = this.slice(), count = Math.max( 0, Math.min( n, copy.length ) );
+		for( var i = 0; i < count; i++ ){
+			var rand = i + Math.floor( Math.random() * ( copy.length - i ) );
+			var tmp = copy[i]; copy[i] = copy[ rand ]; copy[ rand ] = tmp;
+		}
+		return copy.slice( 0, count );
 	}
 
 	// getters (native paradigm favours these over size()/length())
