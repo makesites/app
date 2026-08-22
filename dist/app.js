@@ -15,6 +15,8 @@
 
 
 
+
+
 class Base {
 
 	constructor( options ){
@@ -1179,42 +1181,10 @@ class Controller extends Router {
 			//"*path"  : "_404"
 		};
 
-		// Save app state in a seperate object
-		this.state = {
-			fullscreen: false,
-			online: navigator.onLine,
-			// find browser type
-			browser: function(){
-				if( /chrome/.test(navigator.userAgent.toLowerCase()) ) return 'chrome';
-				if( /firefox/.test(navigator.userAgent.toLowerCase()) ) return 'firefox';
-				if( /safari/.test(navigator.userAgent.toLowerCase()) ) return 'safari';
-				if (navigator.appName == 'Microsoft Internet Explorer') return 'ie';
-				if( /android/.test(navigator.userAgent.toLowerCase()) ) return 'android';
-				if(/(iPhone|iPod).*OS 5.*AppleWebKit.*Mobile.*Safari/.test(navigator.userAgent) ) return 'ios';
-				if (navigator.userAgent.indexOf("Opera Mini") !== -1) return 'opera-mini';
-				return 'other';
-			},
-			mobile: (navigator.userAgent.match(/Android/i) || navigator.userAgent.match(/webOS/i) || navigator.userAgent.match(/iPhone/i) || navigator.userAgent.match(/iPod/i) ||navigator.userAgent.match(/BlackBerry/i)),
-			ipad: (navigator.userAgent.match(/iPad/i) !== null),
-			retina: (window.retina || window.devicePixelRatio > 1),
-			// check if there's a touch screen
-			touch : ('ontouchstart' in document.documentElement),
-			pushstate: function() {
-				try {
-					window.history.pushState({"pageTitle": document.title}, document.title, window.location);
-					return true;
-				}
-				catch (e) {
-					return false;
-				}
-			},
-			scroll: true,
-			ram: function(){
-				return (console.memory) ? Math.round( 100 * (console.memory.usedJSHeapSize / console.memory.totalJSHeapSize)) : 0;
-			},
-			standalone: function(){ return (("standalone" in navigator) && navigator.standalone) || (typeof PhoneGap !="undefined" && !_.isUndefined(PhoneGap.env) && PhoneGap.env.app ) || ((typeof external != "undefined") && (typeof external.msIsSiteMode == "function") && external.msIsSiteMode()); },
-			framed: (top !== self) // alternatively (window.top !== window)
-		};
+		// app reference + shared environment state. Owned by the APP facade;
+		// falls back to a standalone state object when used without APP.
+		this.app = options.app || null;
+		this.state = this.app ? this.app.state : createState();
 
 		this.cid = _.uniqueId("controller");
 
@@ -1228,7 +1198,7 @@ class Controller extends Router {
 		// bind the declared routes to the native history engine
 		this._bindRoutes();
 		// start monitoring the URL for changes
-		if( this.options.autostart ) history.start({ pushState: this.options.pushState });
+		if( this.options.autostart && typeof window !== "undefined" ) history.start({ pushState: this.options.pushState });
 	}
 
 	update(){
@@ -1310,6 +1280,7 @@ class Controller extends Router {
 	// keep state.online in sync with the browser connectivity, emitting
 	// "online"/"offline" so the app can react (replaces UA/navigator polling)
 	_setupConnectivity(){
+		if( typeof window === "undefined" ) return;
 		var self = this;
 		window.addEventListener("online", function(){
 			self.state.online = true;
@@ -1324,6 +1295,7 @@ class Controller extends Router {
 	// intercept clicks on internal links and route them through history,
 	// avoiding full-page reloads (native port of the legacy layout _clickLink)
 	_setupLinks(){
+		if( typeof document === "undefined" ) return;
 		var self = this;
 		document.body.addEventListener("click", function( e ){
 			var link = e.target.closest("a");
@@ -1339,9 +1311,10 @@ class Controller extends Router {
 		});
 	}
 
-	// - setup session, opt-in via options.session
+	// - setup session: reuse the app-owned session, or create one when
+	//   configured standalone (opt-in via options.session)
 	_setupSession(){
-		// only create a session when configured
+		if( this.app && this.app.session ){ this.session = this.app.session; return; }
 		if( !this.options.session ) return;
 		var SessionClass = APP.Session || Session;
 		if( SessionClass ) this.session = new SessionClass( {}, this.options.session );
@@ -3029,164 +3002,188 @@ class Utils {
 //import { Collection } from "./collection.js";
 //import { Layout } from "./layout.js";
 
-// Namespace definition
+// Device / environment state. Owned by the APP facade (was built inside the
+// Controller). SSR-safe: the eagerly-evaluated flags guard their globals so the
+// object can be created outside a browser.
+function createState(){
+	var hasNav = ( typeof navigator !== "undefined" );
+	var hasWin = ( typeof window !== "undefined" );
+	var hasDoc = ( typeof document !== "undefined" );
+	return {
+		fullscreen: false,
+		online: ( hasNav && ("onLine" in navigator) ) ? navigator.onLine : true,
+		// find browser type
+		browser: function(){
+			if( !hasNav ) return 'other';
+			if( /chrome/.test(navigator.userAgent.toLowerCase()) ) return 'chrome';
+			if( /firefox/.test(navigator.userAgent.toLowerCase()) ) return 'firefox';
+			if( /safari/.test(navigator.userAgent.toLowerCase()) ) return 'safari';
+			if (navigator.appName == 'Microsoft Internet Explorer') return 'ie';
+			if( /android/.test(navigator.userAgent.toLowerCase()) ) return 'android';
+			if(/(iPhone|iPod).*OS 5.*AppleWebKit.*Mobile.*Safari/.test(navigator.userAgent) ) return 'ios';
+			if (navigator.userAgent.indexOf("Opera Mini") !== -1) return 'opera-mini';
+			return 'other';
+		},
+		mobile: hasNav ? (navigator.userAgent.match(/Android/i) || navigator.userAgent.match(/webOS/i) || navigator.userAgent.match(/iPhone/i) || navigator.userAgent.match(/iPod/i) ||navigator.userAgent.match(/BlackBerry/i)) : false,
+		ipad: hasNav ? (navigator.userAgent.match(/iPad/i) !== null) : false,
+		retina: hasWin ? (window.retina || window.devicePixelRatio > 1) : false,
+		// check if there's a touch screen
+		touch : hasDoc ? ('ontouchstart' in document.documentElement) : false,
+		pushstate: function() {
+			try {
+				window.history.pushState({"pageTitle": document.title}, document.title, window.location);
+				return true;
+			}
+			catch (e) {
+				return false;
+			}
+		},
+		scroll: true,
+		ram: function(){
+			return (typeof console !== "undefined" && console.memory) ? Math.round( 100 * (console.memory.usedJSHeapSize / console.memory.totalJSHeapSize)) : 0;
+		},
+		standalone: function(){ return (typeof navigator !== "undefined" && ("standalone" in navigator) && navigator.standalone) || (typeof PhoneGap !="undefined" && !_.isUndefined(PhoneGap.env) && PhoneGap.env.app ) || ((typeof external != "undefined") && (typeof external.msIsSiteMode == "function") && external.msIsSiteMode()); },
+		framed: ( typeof self !== "undefined" && typeof top !== "undefined" ) ? (top !== self) : false
+	};
+}
+
+// A lightweight registry of the app's mounted views.
+class Views {
+
+	constructor(){
+		this._views = {};
+	}
+
+	add( name, view ){
+		this._views[name] = view;
+		return view;
+	}
+
+	get( name ){
+		return this._views[name];
+	}
+
+	remove( name ){
+		var view = this._views[name];
+		if( view && typeof view.remove === "function" ) view.remove();
+		delete this._views[name];
+		return this;
+	}
+
+	each( fn ){
+		for( var key in this._views ) fn( this._views[key], key );
+		return this;
+	}
+
+	get all(){
+		return this._views;
+	}
+}
+
+
+// Application facade
+// `new APP()` returns THIS object (not the controller). Its sub-objects -
+// events, state, views, session - are ready synchronously; the router is
+// resolved asynchronously, so await `app.ready` before using `app.router`.
 class APP {
 
-	constructor() {
-
+	constructor( options ) {
+		// fallback(s)
+		options = ( options && typeof options === "object" ) ? options : {};
 		this.name = 'APP';
-
+		// config defaults
+		options.routePath = options.routePath || "app/controllers/";
+		options.pushState = options.pushState || false;
+		this.options = options;
 		// internal
 		this._routes = [];
+		// legacy alias
+		this.Routers = APP.Controllers;
 
-		// shared application event bus (decoupled, cross-tab pub/sub).
-		// attached below to the controller so UI elements use `app.events`.
+		// --- sub-objects (ready synchronously) ---
+		// device / environment state
+		this.state = createState();
+		// shared, decoupled, cross-tab event bus
 		this.events = new Events("app");
+		// registry of mounted views
+		this.views = new Views();
+		// authentication session (created when configured)
+		this.session = options.session ? new APP.Session( {}, options.session ) : null;
+		// the router/controller is resolved asynchronously (see start())
+		this.router = null;
 
-		// get config
-		var options = arguments[0] || {};
-		var callback = arguments[1] || function(){};
-		// defaults
-		options.require = options.require || (typeof define === 'function' && define.amd);
-		options.routePath = "app/controllers/";
-		options.pushState = options.pushState || false;
+		// expose on the global so UI (Model/Collection/Layout) can reach app.state
+		if( typeof window !== "undefined" ) window.app = this;
 
-		// save options
-		this.options = options;
+		// auto-start; `app.ready` resolves once the router is in place
+		this.ready = this.start();
+	}
 
-		// legacy
-		this.Routers = this.Controllers;
-
-		// find controller
-		var controller = false;
-		// check URIs
-		var path = window.location.pathname.split( '/' );
-		// FIX: discart the first item if it's empty
-		if ( path[0] === "" ) path.shift();
-		// default router
-		var controllerDefault = options.routePath +"default";
-		if(typeof options.require == "string"){
-			controller = options.require;
-		} else {
-			controller = options.routePath;
-			controller += ( !_.isEmpty(path[0]) ) ? path[0] : "default";
+	// Resolve the controller and wire it to the app. Returns the facade.
+	async start(){
+		this.router = await this._resolveController();
+		if( this.router ){
+			// give the controller a back-reference to the app
+			this.router.app = this;
 		}
-		if( options.require ){
-			// use require.js
-			require( [ controller ], function( controller ){
-				if( controller ){
-					callback( controller );
-				}
-			}, function (err) {
-				//The errback, error callback
-				//The error has a list of modules that failed
-				var failed = err.requireModules && err.requireModules[0];
-				// what if there's no controller???
-				if( failed == controller ){
-					// fallback to the default controller
-					require( [ controllerDefault ], function( controller ){
-						callback( controller );
-					});
-				} else {
-					//Some other error. Maybe show message to the user.
-					throw err;
-				}
-			});
+		return this;
+	}
 
-			return APP;
+	// Find and instantiate the controller: registered synchronously in
+	// APP.Controllers, or lazily imported (route-based code splitting), falling
+	// back to the default Controller.
+	async _resolveController(){
+		var options = this.options;
+		// the first path segment selects the controller
+		var path = ( typeof window !== "undefined" ) ? window.location.pathname.split("/") : [];
+		if( path[0] === "" ) path.shift();
+		var route = ( !_.isEmpty(path[0]) ) ? path[0] : "default";
+		var ucRoute = route.charAt(0).toUpperCase() + route.slice(1);
+		// pass the app reference into the controller
+		options.app = this;
 
-		} else {
-			// use config to get list of available options
-			var list = options.controllers || [];
-			var route = ( !_.isEmpty(path[0]) ) ? path[0] : "default";
+		// 1. registered synchronously
+		if( typeof APP.Controllers[ucRoute] === "function" ) return new APP.Controllers[ucRoute]( options );
 
-			if( list.includes(route) ){
-				import("../"+ controller+'.js').then(module => {
-					// Use the imported module here
-					var ucRoute = route.charAt(0).toUpperCase() + route.slice(1);
-					var Router = (typeof module[ucRoute] === "function") ? module[ucRoute] : module.Router; // more fallbacks
-					this.route = new Router();
-					this.route.events = this.events;
-				}).catch(error => {
-					// Handle errors here
-					console.error(error);
-				});
-			} else if( list.includes("default") ){
-				import( "../"+ controllerDefault+'.js').then(module => {
-					// Use the imported module here
-					var Router = (typeof module.Default === "function") ? module.Default : module.Router; // more fallbacks
-					this.route = new Router();
-					this.route.events = this.events;
-				}).catch(error => {
-					// Handle errors here
-					console.error(error);
-				});
-				// check if there's a custom default controller
-				//import * as CustomRouter from controllerDefault+".js";
-				//this.route = new CustomRouter();
-			} else {
-				// fallback to the default router
-				this.route = new APP.Controller();
-				this.route.events = this.events;
+		// 2. lazily imported (route-based code splitting)
+		var list = options.controllers || [];
+		if( list.includes(route) || list.includes("default") ){
+			var name = list.includes(route) ? route : "default";
+			var uc = name.charAt(0).toUpperCase() + name.slice(1);
+			try {
+				var module = await import( "../" + options.routePath + name + ".js" );
+				var Ctrl = module[uc] || module.Default || module.Router || APP.Controller;
+				return new Ctrl( options );
+			} catch( error ){
+				console.error( error );
+				return new APP.Controller( options );
 			}
-
-			// return controller so it's accessible through the app global
-			return this.route;
 		}
-		// OLD version: global namespace lookup
-		/*
-		} else {
-			// default controller
-			var defaultController = (APP.Controllers.Default) ? APP.Controllers.Default : Controller;
-			// find a controller based on the path
-			for(var i in path ){
-				// discart the first item if it's empty
-				if( path[i] === "") continue;
-				controller = (path[i].charAt(0).toUpperCase() + path[i].slice(1));
-				// stop if we've found a controller
-				if(typeof(APP.Controllers[controller]) == "function") break;
-			}
-			// call the controller or fallback to the default
-			var route = (controller && APP.Controllers[controller]) ? new APP.Controllers[controller]( options ) : new defaultController( options );
-			// return controller so it's accessible through the app global
-			return route;
-		}
-		*/
 
+		// 3. fallback to the default controller
+		return new APP.Controller( options );
 	}
 
 	routes() {
 		return this._routes;
 	}
-
-	/*
-	 * based on Backbone.ready()
-	 * Source: https://gist.github.com/tracend/5617079
-	 *
-	 * by Makis Tracend( @tracend )
-	 *
-	 * Usage:
-	 * APP.ready( callback );
-	 *
-	 */
-	ready( callback ){
-
-		if( _.isPhonegap() ){
-			return PhoneGap.init( callback );
-
-		} else if( document.readyState !== "loading" ){
-			// the DOM is already ready - run on the next tick
-			return setTimeout( callback, 0 );
-
-		} else {
-			// native DOM-ready (replaces jQuery's $(document).ready)
-			return document.addEventListener("DOMContentLoaded", callback);
-		}
-
-	}
-
 }
 
+
+// DOM-ready helper (static: APP.ready( callback )). Distinct from the instance
+// `app.ready` promise, which resolves when the router has loaded.
+// Source: https://gist.github.com/tracend/5617079
+APP.ready = function( callback ){
+	if( _.isPhonegap() ){
+		return PhoneGap.init( callback );
+	} else if( typeof document !== "undefined" && document.readyState !== "loading" ){
+		// the DOM is already ready - run on the next tick
+		return setTimeout( callback, 0 );
+	} else if( typeof document !== "undefined" ){
+		// native DOM-ready (replaces jQuery's $(document).ready)
+		return document.addEventListener("DOMContentLoaded", callback);
+	}
+};
 
 
 // Base Classes
