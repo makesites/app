@@ -17,6 +17,7 @@
 
 
 
+
 class Base {
 
 	constructor( options ){
@@ -108,6 +109,36 @@ class Base {
 		for( var i = 0; i < list.length; i++ ){
 			list[i].callback.apply( list[i].ctx, args );
 		}
+	}
+
+	// Inversion-of-control listening. Tell *this* object to listen to another
+	// object's events (bound to this context) and remember the binding so it can
+	// be torn down in one call - crucial for avoiding leaks when views are removed.
+	listenTo( obj, name, callback ){
+		if( !obj ) return this;
+		var listeningTo = this._listeningTo || (this._listeningTo = []);
+		listeningTo.push({ obj: obj, name: name, callback: callback });
+		obj.on( name, callback, this );
+		return this;
+	}
+
+	// Stop listening. With no args, drops every listenTo binding; otherwise
+	// filters by object / event name / callback.
+	stopListening( obj, name, callback ){
+		var listeningTo = this._listeningTo;
+		if( !listeningTo ) return this;
+		var remaining = [];
+		for( var i = 0; i < listeningTo.length; i++ ){
+			var l = listeningTo[i];
+			var match = ( !obj || obj === l.obj ) && ( !name || name === l.name ) && ( !callback || callback === l.callback );
+			if( match ){
+				l.obj.off( l.name, l.callback, this );
+			} else {
+				remaining.push( l );
+			}
+		}
+		this._listeningTo = remaining;
+		return this;
 	}
 
 	remove() {
@@ -804,11 +835,12 @@ class View extends Base {
 		// set the type to default (as the Template expects)
 		if( !this.options.type ) this.options.type = "default";
 		this.template = (typeof TMPL == "function") ? new TMPL(html, { url : url }) : TMPL;
-		if( self.options.autoRender ) this.template.bind("loaded", this.render);
+		// re-render when the template loads (tracked so remove() cleans it up)
+		if( self.options.autoRender && this.template.on ) this.listenTo(this.template, "loaded", this.render);
 
-		// add listeners (bind the view as the callback context)
+		// add listeners (tracked via listenTo so remove() tears them down)
 		if( this.options.data && !_.isUndefined( this.data.on ) ){
-			this.data.on( this.options.bind, this.render, this );
+			this.listenTo( this.data, this.options.bind, this.render );
 		}
 		// #11 : initial render only if data is not empty (or there are no data)
 		if( this._initRender() ){
@@ -885,10 +917,10 @@ class View extends Base {
 
 	// a more discrete way of binding events triggers to objects
 	listen( obj, event, callback ){
-		// adds event listeners to the data (bound to this view's context)
+		// adds event listeners to the data (tracked via listenTo for cleanup)
 		var e = ( typeof event == "string")? [event] : event;
 		for( var i in e ){
-			obj.on(e[i], callback, this);
+			this.listenTo(obj, e[i], callback);
 		}
 
 	}
@@ -1132,8 +1164,10 @@ class View extends Base {
 		this.observer.observe( this.el );
 	}
 
-	// tidy up the view: stop observing and detach it from the DOM
+	// tidy up the view: drop event bindings, stop observing, detach from the DOM
 	remove(){
+		// remove all listenTo bindings (data, template, ...) to avoid leaks
+		this.stopListening();
 		if( this.observer ) this.observer.disconnect();
 		if( this.el && this.el.parentNode ) this.el.parentNode.removeChild( this.el );
 		// let Base remove the resize listener etc.
@@ -1747,7 +1781,8 @@ class Layout extends View {
 	set( views ){
 		// add event triggers on the views
 		for( var i in views ){
-			views[i].on("loaded", this._viewLoaded, this );
+			// tracked via listenTo so remove() tears the bindings down
+			this.listenTo( views[i], "loaded", this._viewLoaded );
 			// 'stamp' each view with a label
 			views[i]._name = i;
 			// bind events
@@ -1755,7 +1790,7 @@ class Layout extends View {
 				// view reference in the data
 				views[i].data._view = i;
 				// bind all data updates to the layout
-				views[i].data.on( this.options.sync_events, this._syncData, this );
+				this.listenTo( views[i].data, this.options.sync_events, this._syncData );
 			}
 			// register the view
 			this.views[i] = views[i];
@@ -1772,6 +1807,9 @@ class Layout extends View {
 		var view = this.get( name );
 		// prerequisite
 		if( _.isUndefined(view) ) return;
+		// drop our listeners on this view + its data
+		this.stopListening( view );
+		if( view.data ) this.stopListening( view.data );
 		// undelegate view events
 		view.remove();
 		// remove the reference from this.views
