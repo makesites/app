@@ -1,8 +1,8 @@
 /**
  * @name @makesites/app
- * A lightweight, ES6 client-side application framework
+ * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.6.5 (built)
+ * Version: 0.7.0 (Sun, 22 Aug 2026 13:48:39 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -11,11 +11,7 @@
  * @license Released under the MPL v2.0, AGPL v3.0 licenses
  */
 
-
-
-
-
-
+//import { APP } from "./app.js";
 
 
 
@@ -3256,6 +3252,7 @@ APP.Collections = {};
 APP.Views = {};
 APP.Layouts = {};
 APP.Templates = {};
+
 
 
 // Initialize utilities
