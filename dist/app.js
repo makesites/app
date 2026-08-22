@@ -13,6 +13,8 @@
 
 
 
+
+
 class Base {
 
 	constructor( options ){
@@ -2719,6 +2721,74 @@ const KeysMixin = ( BaseClass ) => class extends BaseClass {
 	}
 };
 
+/*
+ * Events
+ * An application-wide, decoupled pub/sub bus (the mediator pattern). Publishers
+ * and subscribers rendezvous on named events without holding a reference to one
+ * another - unlike Base's on/trigger, which observe a specific object.
+ *
+ * Events are delivered in-page immediately (via the Base event registry) and,
+ * when available, mirrored to other tabs/windows of the same origin using a
+ * BroadcastChannel. Cross-tab payloads are structured-cloned, so non-cloneable
+ * values (functions, DOM nodes, class instances) are delivered locally only.
+ *
+ *   const bus = new Events("app");
+ *   bus.on("slideshow:next", (frame) => caption.show(frame)); // decoupled
+ *   bus.trigger("slideshow:next", 3);   // local listeners + other tabs
+ *
+ * Copyright © Makesites.org
+ */
+
+class Events extends Base {
+
+	constructor( name, options ){
+		// fallback(s)
+		options = options || {};
+		super( options );
+		// the channel name (topic namespace)
+		this.name = name || "app";
+		// bridge to other browsing contexts unless disabled / unavailable
+		this.broadcast = ( options.broadcast !== false ) && ( typeof BroadcastChannel !== "undefined" );
+		if( this.broadcast ){
+			this._channel = new BroadcastChannel( this.name );
+			var self = this;
+			this._channel.addEventListener("message", function( e ){
+				var msg = e.data || {};
+				// re-emit a remote event to local listeners only (no re-broadcast)
+				self._emit( msg.event, msg.args || [] );
+			});
+		}
+	}
+
+	// publish an event: deliver to local listeners and (optionally) other tabs
+	trigger( name ){
+		var args = Array.prototype.slice.call( arguments, 1 );
+		// local, same-tab delivery
+		this._emit( name, args );
+		// cross-tab delivery (structured-clone; stays local-only if not cloneable)
+		if( this._channel ){
+			try {
+				this._channel.postMessage({ event: name, args: args });
+			} catch( e ){
+				// payload not structured-cloneable - already delivered locally
+			}
+		}
+		return this;
+	}
+
+	// deliver to local listeners via the Base registry (without re-broadcasting)
+	_emit( name, args ){
+		return Base.prototype.trigger.apply( this, [name].concat( args ) );
+	}
+
+	// tear down the cross-tab channel and drop all listeners
+	close(){
+		if( this._channel ) this._channel.close();
+		this._channel = null;
+		this.off();
+	}
+}
+
 // utilities
 class Utils {
 
@@ -2969,6 +3039,10 @@ class APP {
 		// internal
 		this._routes = [];
 
+		// shared application event bus (decoupled, cross-tab pub/sub).
+		// attached below to the controller so UI elements use `app.events`.
+		this.events = new Events("app");
+
 		// get config
 		var options = arguments[0] || {};
 		var callback = arguments[1] || function(){};
@@ -3032,6 +3106,7 @@ class APP {
 					var ucRoute = route.charAt(0).toUpperCase() + route.slice(1);
 					var Router = (typeof module[ucRoute] === "function") ? module[ucRoute] : module.Router; // more fallbacks
 					this.route = new Router();
+					this.route.events = this.events;
 				}).catch(error => {
 					// Handle errors here
 					console.error(error);
@@ -3041,6 +3116,7 @@ class APP {
 					// Use the imported module here
 					var Router = (typeof module.Default === "function") ? module.Default : module.Router; // more fallbacks
 					this.route = new Router();
+					this.route.events = this.events;
 				}).catch(error => {
 					// Handle errors here
 					console.error(error);
@@ -3051,6 +3127,7 @@ class APP {
 			} else {
 				// fallback to the default router
 				this.route = new APP.Controller();
+				this.route.events = this.events;
 			}
 
 			// return controller so it's accessible through the app global
@@ -3121,6 +3198,7 @@ APP.Template = Template;
 APP.Collection = Collection;
 APP.Layout = Layout;
 APP.Session = Session;
+APP.Events = Events;
 
 // The global history singleton
 APP.history = history;
@@ -3141,5 +3219,5 @@ var _ = new Utils();
 // expose on the global (guarded so the bundle also imports under Node/SSR)
 if ( typeof window !== "undefined" ) window.APP = APP;
 
-export { APP, Model, View, Controller, Router, history, Collection, Layout, Template, Session, sync };
+export { APP, Model, View, Controller, Router, history, Events, Collection, Layout, Template, Session, sync };
 export { TouchMixin, MouseMixin, ScrollMixin, MotionMixin, GamepadMixin, KeysMixin };
