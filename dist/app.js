@@ -18,6 +18,7 @@
 
 
 
+
 class Base {
 
 	constructor( options ){
@@ -2168,8 +2169,11 @@ class Template extends Model {
 		// fallback(s)
 		options = options || (options={});
 		html = html || "";
-		//
-		super(options);
+		// pass options as Model *options* (not as model attributes) so this.options
+		// carries url/type/compiler. (Was `super(options)`, which mis-routed them
+		// into attributes and left this.options.url undefined - the remote-template
+		// url branch never fired.)
+		super({}, options);
 
 		this.html = html;
 
@@ -2194,6 +2198,13 @@ class Template extends Model {
 	}
 
 	compile( markup ){
+
+		// Pluggable compiler: when a `compiler` option is supplied (e.g.
+		// Handlebars.compile, or a CSP-safe engine), delegate to it instead of the
+		// built-in one. The built-in uses `new Function`, which requires the
+		// 'unsafe-eval' CSP directive - inject a compiler to run under strict CSP.
+		var compiler = this.options && this.options.compiler;
+		if( typeof compiler === "function" ) return compiler( markup );
 
 		// coerce to a string template (the markup itself is author-trusted)
 		var cleanMarkup = _.isString( markup ) ? markup : String( markup == null ? "" : markup );
