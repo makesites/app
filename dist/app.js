@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.7.0 (Sat, 22 Aug 2026 15:47:59 GMT)
+ * Version: 0.7.0 (Sat, 22 Aug 2026 15:53:18 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -20,8 +20,9 @@ class Base {
 	constructor( options ){
 		// fallback(s)
 		options = options || {};
-		// variables
-		this.states = options.states || {}; // delete options.states?
+		// states passed via options are merged with the class's own states at
+		// init time (we never assign `this.states`, so subclass getters work)
+		this._optionStates = options.states || {};
 
 		this.initStates();
 
@@ -181,7 +182,9 @@ class Base {
 	}
 
 	delegateEvents( events ){
-		events =  events || _.result(this, 'events');
+		// merge the class's built-in events (_baseEvents) with the subclass's
+		// events, resolved via a getter or own-property (so getters don't throw)
+		events = events || _.extend({}, this._baseEvents, _.result(this, 'events'));
 		var self = this;
 		var delegateEventSplitter = /^(\S+)\s*(.*)$/;
 		if (!events) return this;
@@ -245,9 +248,15 @@ class Base {
 	// Source: https://github.com/makesites/backbone-states
 
 	initStates(){
-		for(var e in this.states){
-			var method = this.states[e];
-			this.bind(e, _.bind(this[method], this) );
+		// resolve states from the class built-ins (_baseStates) + the subclass
+		// (getter/own-property) + any passed via options, without assigning
+		// `this.states` (so subclass getters don't throw). Uses native Object.assign
+		// (not `_`) because this runs at module load for the history singleton,
+		// before the `_` utils instance exists.
+		var states = Object.assign({}, this._baseStates, this.states, this._optionStates);
+		for( var e in states ){
+			var method = states[e];
+			if( typeof this[method] === 'function' ) this.bind( e, this[method].bind(this) );
 		}
 	}
 }
@@ -278,19 +287,21 @@ class Router extends Base {
 		options = options || {};
 		super( options );
 		// events are inherited from Base (on/once/off/trigger/bind)
-		// routes can be passed in as an option
-		if( options.routes ) this.routes = options.routes;
+		// routes can be passed in as an option (merged in _bindRoutes; we never
+		// assign `this.routes`, so subclass getters don't throw)
+		if( options.routes ) this._optionRoutes = options.routes;
 	}
 
 	initialize(){}
 
 	// Bind all defined routes to `history`.
 	_bindRoutes(){
-		if( !this.routes ) return;
-		this.routes = _.result( this, "routes" );
-		var route, routes = Object.keys( this.routes );
-		while( (route = routes.pop()) != null ){
-			this.route( route, this.routes[route] );
+		// resolve routes from the subclass (getter/property) + options
+		var routes = _.extend({}, _.result( this, "routes" ), this._optionRoutes);
+		var route, names = Object.keys( routes );
+		if( !names.length ) return;
+		while( (route = names.pop()) != null ){
+			this.route( route, routes[route] );
 		}
 	}
 
@@ -826,31 +837,21 @@ class View extends Base {
 			scroll : false,
 			visible : false
 		});
-		// A simple state machine for views.
-		this.states = {
+		// built-in state machine + events. Kept as _base* so they merge with a
+		// subclass's states/events (getter or property) without being clobbered -
+		// and so subclass getters don't collide with a constructor assignment.
+		this._baseStates = {
 			"scroll": "_scroll"
 		};
-
-		this.defaults = {
-			data : false,
-			html: false,
-			template: false,
-			url : false,
-			bind: "add remove reset change", // change the default to "sync"?
-			type: false,
-			parentEl : false,
-			autoRender: true,
-			inRender: false,
-			silentRender: false,
-			renderTarget: false
-		};
-		// events are inherited from Base (on/once/off/trigger/bind)
-		this.events = {
+		this._baseEvents = {
 			"click a[rel='external']" : "clickExternal"
 		};
 
+		// view option defaults (a subclass may override via get defaults())
+		var defaults = _.extend({}, this._viewDefaults(), _.result(this, 'defaults'));
+
 		//  extend options
-		this.options = _.extend({}, this.defaults, options);
+		this.options = _.extend({}, defaults, options);
 		// flags
 		this.options.data  = !_.isNull( this.data );
 
@@ -914,11 +915,22 @@ class View extends Base {
 		//return View.prototype.initialize.call(this, options);
 	}
 
-	initStates(){
-		for(var e in this.states){
-			var method = this.states[e];
-			this.bind(e, this[method].bind(this) );
-		}
+	// built-in view option defaults (merged under any subclass get defaults()).
+	// initStates() is now inherited from Base (resolve-merge of _baseStates).
+	_viewDefaults(){
+		return {
+			data : false,
+			html: false,
+			template: false,
+			url : false,
+			bind: "add remove reset change",
+			type: false,
+			parentEl : false,
+			autoRender: true,
+			inRender: false,
+			silentRender: false,
+			renderTarget: false
+		};
 	}
 
 	// parse URL in runtime (optionally)
@@ -1247,9 +1259,6 @@ class Controller extends Router {
 		// inherit the native Router/History routing engine
 		super( options );
 
-		// defaults
-		this.routes = {};
-
 		this.data = new Model();
 
 		// app configuration:
@@ -1263,13 +1272,12 @@ class Controller extends Router {
 
 		// app config refered to as options
 		options = options || {};
-		// extend default options (recursive?)
-		//this.options = _.extend({}, this.defaults, options);
 		this.options = _.extend({}, this.defaults, options);
 
-		// to preserve these routes, extend with:
-		// _.extend({}, APP.Router.prototype.routes, {...});
-		this.routes = {
+		// built-in routes, merged UNDER any subclass routes at bind time (see
+		// _bindRoutes). Kept as _baseRoutes so a subclass can declare `get routes()`
+		// without colliding with a constructor assignment.
+		this._baseRoutes = {
 			"": "index",
 			"_=_": "_fixFB",
 			"access_token=:token": "access_token",
@@ -1446,11 +1454,12 @@ class Controller extends Router {
 
 	// - overriding default _bindRoutes
 	_bindRoutes(){
-		if (!this.routes) return;
-		this.routes = _.result(this, 'routes');
-		var route, routes = Object.keys(this.routes);
-		while(typeof (route = routes.pop()) !== "undefined"){
-			var name = this.routes[route];
+		// resolve routes: built-ins + subclass (getter/property) + options,
+		// without assigning `this.routes` (so subclass getters don't throw)
+		var routes = _.extend({}, this._baseRoutes, _.result(this, 'routes'), this._optionRoutes);
+		var route, names = Object.keys(routes);
+		while(typeof (route = names.pop()) !== "undefined"){
+			var name = routes[route];
 			// when we find the route we execute the preRoute
 			// with a reference to the route as a callback...
 			this.route(route, name, this._callRoute( this[name] ) );

@@ -133,13 +133,17 @@ view.remove();   // stopListening + disconnect observer + detach from DOM
 
 ### Controller & Router
 
-`Controller` extends the native `Router`. The base controller already maps `""` →
-`index()` (and `logout`, etc.), so override those methods; guard routes by
-overriding `execute()` and returning `false` to cancel.
+`Controller` extends the native `Router`. Declare routes with a `routes` getter
+(merged over the built-in routes); guard them by overriding `execute()` and
+returning `false` to cancel.
 
 ```javascript
 class Main extends Controller {
-  index(){ /* home route */ }
+  get routes(){
+    return { "": "home", "dashboard": "dashboard" };
+  }
+  home(){ /* ... */ }
+  dashboard(){ /* ... */ }
 
   // route guard
   execute(callback, args, name){
@@ -153,8 +157,6 @@ class Main extends Controller {
 
 APP.Controllers.Default = Main;     // the facade picks this up
 ```
-
-> Declaring a **new** `routes` hash on a subclass isn't supported yet — see *Status*.
 
 ### Events bus
 
@@ -255,12 +257,12 @@ Backbone remain in `lib/`.
 
 Known rough edges (on the roadmap):
 
-* Declaring a **new** `routes` / `events` / `defaults` hash on a *subclass* via a
-  getter doesn't work yet — the base constructor assigns these, so override the
-  built-in route methods for now.
-* Model/Collection completeness (validation hooks, `previous()`/`changedAttributes`,
-  a comparator/sort, `Collection#remove`) and `sync` cancellation
-  (`AbortController`) are still to come.
+* Subclass `routes` / `events` / `states` getters now work; a `get defaults()` on a
+  **Model** (attribute defaults) is the remaining one — landing next.
+* Model completeness (attribute defaults, validation hooks,
+  `previous()`/`changedAttributes()`) and Collection completeness (comparator/sort,
+  `remove`, smart `set`/dedup) plus `sync` cancellation (`AbortController`) are
+  still to come.
 
 
 ## Credits
