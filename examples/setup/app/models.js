@@ -1,17 +1,13 @@
-import { APP, Model } from "/build/app.js";
+import { APP, Model } from "../../../dist/app.js";
 
 class User extends Model {
 
-	constructor( model, options ) {
-		super( options );
-
-		console.log("model init");
-	}
+	// a computed url for fetch()/save() (native fetch under the hood)
+	get url(){ return "/api/user"; }
 
 }
 
-// save in APP namespace
+// save in the APP namespace
 APP.Models.User = User;
-
 
 export { User };

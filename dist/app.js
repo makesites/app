@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.7.0 (Sat, 22 Aug 2026 13:53:26 GMT)
+ * Version: 0.7.0 (Sat, 22 Aug 2026 15:47:59 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -3314,12 +3314,12 @@ class APP {
 				return new Ctrl( options );
 			} catch( error ){
 				console.error( error );
-				return new APP.Controller( options );
+				return new ( APP.Controllers.Default || APP.Controller )( options );
 			}
 		}
 
-		// 3. fallback to the default controller
-		return new APP.Controller( options );
+		// 3. fallback to a registered Default controller, else the base Controller
+		return new ( APP.Controllers.Default || APP.Controller )( options );
 	}
 
 	routes() {

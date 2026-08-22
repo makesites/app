@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>APP :: Setup</title>
+<link rel="shortcut icon" href="#">
+
+<!-- main lib -->
+<!--link rel="import" href="../../index.html"-->
+
+<script type="text/javascript" src="./es6-sample-project.min.js"></script>
+<script type="text/javascript" src="../../dist/app.min.js"></script>
+<script type="module" src="./jquery.js"></script>
+<script type="module" src="./main.js"></script>
+
+<script type="module">
+
+import { esPerson as Person } from './main.js';
+//import * as APP from '../../dist/app.browser.js';
+
+console.log( $ );
+var p = new Person("Makis", 100);
+console.log(p.name, p.age);
+
+/*
+
+import { APP } from './main.js';
+
+var p = new APP("Makis", 100);
+*/
+</script>
+
+</head>
+<body>
+
+<div id="main"><!-- --></div>
+
+</body>
+</html>

@@ -5,23 +5,26 @@ dependency-free evolution of [backbone-app](http://github.com/makesites/backbone
 It keeps the familiar MV* structure (Models, Collections, Views, Controllers,
 Layouts, Templates) while replacing the legacy stack (Backbone, jQuery `$.ajax`,
 Underscore, System.js) with native Web APIs: `fetch`, `IntersectionObserver`,
-`DOMParser`, the History API and ES Modules.
+`DOMParser`, `BroadcastChannel`, the History API and ES Modules.
 
-> **Note:** Still evolving toward a production-ready release. See *Status* below.
+> **Note:** Approaching production-readiness; a test suite ships with the repo.
+> See *Status* below for the remaining rough edges.
 
 
 ## Features
 
 * ES6 class-based architecture (no `extend` shims)
-* MVC: `Model`, `Collection`, `View`, `Controller`, `Layout`, `Template`
+* An **application facade**: `new APP()` composes `events`/`state`/`views`/`router`;
+  `await app.ready`
+* A decoupled, **cross-tab event bus** (`app.events`, via `BroadcastChannel`)
 * Native `fetch()` sync layer — `fetch()` / `save()` / `destroy()` return Promises
 * Native `Router` / `History` (pushState & hashchange), with route guards
+* `listenTo` / `stopListening` with automatic cleanup on view removal
 * Offline-first caching (`localStorage`) with stale-while-revalidate sync
 * Authentication `Session` model (sessionStorage → localStorage → cookie fallback)
 * `IntersectionObserver`-based view visibility (`visible` / `hidden` events)
-* Remote templates via `DOMParser` (HTML fragments / `<template>` tags)
+* Remote templates via `DOMParser`; a **pluggable compiler** (CSP-safe via injection)
 * Composable input mixins: Touch, Mouse, Scroll, Motion, Gamepad, Keys
-* Handlebars-compatible `{{moustache}}` template compiler (optional)
 
 
 ## Installation
@@ -34,26 +37,44 @@ npm install @makesites/app
 
 ```javascript
 import { APP, Model, View, Controller, Collection } from "@makesites/app";
-import { Session } from "@makesites/app";              // opt-in extension
-import { TouchMixin, KeysMixin } from "@makesites/app"; // input mixins
+import { Events, Session } from "@makesites/app";       // bus + session
+import { TouchMixin, KeysMixin } from "@makesites/app";  // input mixins
 ```
 
 **CDN & import maps** (no build step)
 
 ```html
 <script type="importmap">
-  {
-    "imports": {
-      "app": "https://cdn.jsdelivr.net/npm/@makesites/app/dist/app.js"
-    }
-  }
+  { "imports": { "app": "https://cdn.jsdelivr.net/npm/@makesites/app/dist/app.js" } }
 </script>
 <script type="module">
   import { APP, Model, View } from "app";
 </script>
 ```
 
-The library also attaches itself to `window.APP` for classic script-tag usage.
+The library also attaches itself to `window.APP` (and `window.app` once
+instantiated) for classic script-tag usage.
+
+
+## Quick start — the APP facade
+
+`new APP()` returns a **facade** whose sub-objects are ready immediately; the
+router resolves asynchronously, so `await app.ready` before using `app.router`.
+
+```javascript
+import { APP } from "@makesites/app";
+import "./app/controllers.js";   // registers APP.Controllers.Default
+
+const app = new APP({ pushState: true });
+window.app = app;
+
+app.events.on("cart:add", (item) => badge.update());  // decoupled pub/sub
+app.state.online;                                     // device/env state
+app.views.add("main", view);                          // view registry
+
+await app.ready;                                      // router now available
+app.router.navigate("/home", { trigger: true });
+```
 
 
 ## Core API
@@ -69,6 +90,7 @@ class Book extends Model {
 
 const book = new Book({ id: 1 });
 await book.fetch();                 // GET, returns a Promise
+book.on("change:title", (m, v) => console.log("new title:", v));
 book.set("title", "A Modern JS Guide");
 await book.save();                  // POST/PUT depending on isNew()
 ```
@@ -89,59 +111,83 @@ const active = library.filter(book => book.get("active"));
 
 ### View
 
-Organises the DOM and reacts to data. Visibility is tracked natively via
-`IntersectionObserver` (`visible` / `hidden` events); zero jQuery.
+Organises the DOM and reacts to data. Bindings made with `listen`/`listenTo` are
+torn down automatically on `remove()` (no leaks); visibility is tracked natively
+via `IntersectionObserver` (`visible` / `hidden` events). Zero jQuery.
 
 ```javascript
 class BookView extends View {
-  get events(){ return { "click .buy": "buy" }; }
-
   initialize(){
+    // auto-removed when the view is remove()d
     this.listen(this.model, "change", this.render);
   }
-
-  buy(e){ /* ... */ }
+  render(){
+    this.el.innerHTML = `<h2>${this.model.get("title")}</h2>`;
+    return this;
+  }
 }
 
 const view = new BookView({ model: book, el: "#app" });
-view.render();
+view.remove();   // stopListening + disconnect observer + detach from DOM
 ```
 
 ### Controller & Router
 
-`Controller` extends the native `Router`, mapping URL fragments to methods and
-starting the `history` monitor. Override `execute()` to guard routes.
+`Controller` extends the native `Router`. The base controller already maps `""` →
+`index()` (and `logout`, etc.), so override those methods; guard routes by
+overriding `execute()` and returning `false` to cancel.
 
 ```javascript
 class Main extends Controller {
-  get routes(){
-    return {
-      "": "home",
-      "books/:id": "showBook",
-      "*path": "_404"
-    };
+  index(){ /* home route */ }
+
+  // route guard
+  execute(callback, args, name){
+    if (name === "dashboard" && !this.app.session?.get("auth")) {
+      this.navigate("login", { trigger: true });
+      return false;                 // cancel the route
+    }
+    return super.execute(callback, args, name);
   }
-  home(){ /* ... */ }
-  showBook(id){ /* ... */ }
 }
 
-new Main({ autostart: true, pushState: true });
+APP.Controllers.Default = Main;     // the facade picks this up
+```
+
+> Declaring a **new** `routes` hash on a subclass isn't supported yet — see *Status*.
+
+### Events bus
+
+A decoupled, cross-tab publish/subscribe bus (distinct from an object's own
+`on`/`trigger`). Publishers and subscribers never reference each other, and
+events mirror across tabs of the same origin.
+
+```javascript
+// publisher (no reference to any subscriber):
+app.events.trigger("slideshow:next", frame);
+// subscribers anywhere — same tab or another tab:
+app.events.on("slideshow:next", (frame) => caption.show(frame));
 ```
 
 ### Template
 
-Compiles inline markup or fetches remote HTML fragments natively.
+Compiles inline markup or fetches remote HTML fragments natively. The default
+compiler uses `new Function` (needs the `unsafe-eval` CSP directive); inject your
+own compiler to run under strict CSP.
 
 ```javascript
-const tmpl = new Template(null, { url: "/templates/books.html" });
-tmpl.bind("loaded", () => console.log(tmpl.get("default")));
+const t = new Template("<b>${title}</b>");          // built-in (escapes data)
+
+// strict-CSP / bring-your-own engine:
+const t2 = new Template(html, { compiler: Handlebars.compile });
 ```
 
 ### sync
 
 The `fetch()`-based networking function underlying `Model`/`Collection`.
 Returns a Promise, still fires `success`/`error` callbacks and `request`/`error`
-events, and manually rejects on non-2xx responses.
+events, applies an app-wide base URL / credentials / headers (see
+`configureSync`), and manually rejects on non-2xx responses.
 
 
 ## Extensions
@@ -152,12 +198,13 @@ events, and manually rejects on non-2xx responses.
 const session = new Session({}, { host: "https://api.example.com" });
 session.once("loaded", () => history.start({ pushState: true }));
 session.on("change:auth", () => {
-  if (!session.get("auth")) router.navigate("login", { trigger: true });
+  if (!session.get("auth")) app.router.navigate("login", { trigger: true });
 });
 ```
 
-Wire it into a `Controller` with `new Controller({ session: { host } })` — the
-`preRoute` guard waits for the session before running protected routes.
+Wire it into the app with `new APP({ session: { host } })` — it becomes
+`app.session`, and the controller's `preRoute` guard waits for it before running
+protected routes.
 
 ### Offline cache
 
@@ -182,29 +229,38 @@ class Carousel extends TouchMixin(View) {
 }
 
 class Game extends KeysMixin(GamepadMixin(View)) {
-  get keys(){ return { "Escape": "pause", "KeyW": "forward" }; }
+  constructor(o){ super(o); this.keys = { "Escape": "pause", "KeyW": "forward" }; }
   pause(){ /* ... */ }
 }
 ```
 
 
-## Build
-
-The distributable is concatenated from `lib/` into `dist/` via Node.js:
+## Build & test
 
 ```bash
-$ npm run build      # or: node build
+npm run build      # concatenates lib/ -> dist/app.js and minifies -> dist/app.min.js
+npm test           # node --test (no test dependencies)
 ```
 
-You will find the compiled `dist/app.js` and `dist/app.min.js`.
+The concatenation manifest (dependency order) lives in `build/index.js`.
 
 
 ## Status
 
-The core (Model, Collection, View, Controller/Router, Template, sync, cache,
-session, input) has been modernized off Backbone/jQuery/Underscore. A few areas
-still use jQuery and are being migrated: `Layout`, `APP.ready()` and
-`Controller._ajaxPrefilter`.
+The core — the APP facade, Model, Collection, View (with `listenTo` cleanup),
+Controller/Router, the Events bus, Template (pluggable compiler), `sync`, cache,
+`Session`, `Layout` and the input mixins — is modernized off
+Backbone/jQuery/Underscore and covered by a test suite. No jQuery, Underscore or
+Backbone remain in `lib/`.
+
+Known rough edges (on the roadmap):
+
+* Declaring a **new** `routes` / `events` / `defaults` hash on a *subclass* via a
+  getter doesn't work yet — the base constructor assigns these, so override the
+  built-in route methods for now.
+* Model/Collection completeness (validation hooks, `previous()`/`changedAttributes`,
+  a comparator/sort, `Collection#remove`) and `sync` cancellation
+  (`AbortController`) are still to come.
 
 
 ## Credits
