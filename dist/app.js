@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.7.0 (Sat, 22 Aug 2026 15:53:18 GMT)
+ * Version: 0.7.0 (Sun, 23 Aug 2026 00:15:43 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -545,12 +545,16 @@ class Model extends Base {
 		};
 
 		this.attributes = {};
+		// change tracking
+		this.changed = {};
+		this._previousAttributes = {};
+		// the attribute that holds the id (subclass may override via get idAttribute())
+		if( typeof this.idAttribute === "undefined" ) this.idAttribute = "id";
 
 		// save options for later
 		options = options || {};
 		this.options = _.extend({}, this.defaults, options);
 		// set data if given
-		//if( !_.isNull( model ) && !_.isEmpty( model ) ) this.set( model );
 		if( typeof model == "object" ) this.set( model );
 
 		this.cid = _.uniqueId("model");
@@ -620,39 +624,94 @@ class Model extends Base {
 
 		options = options || {};
 
-		// Extract attributes and options.
+		// run validation (only when options.validate); abort on failure
+		if( !this._validate( attrs, options ) ) return false;
+
+		var unset = options.unset;
 		var silent = options.silent;
 		var changes = [];
+		var changing = this._changing;
+		this._changing = true;
 
-		// For each `set` attribute, update the value if it actually changed.
+		// snapshot the previous state at the start of a (non-nested) set
+		if( !changing ){
+			this._previousAttributes = _.extend({}, this.attributes);
+			this.changed = {};
+		}
+		var current = this.attributes;
+		var prev = this._previousAttributes;
+
+		// track the id
+		if( this.idAttribute in attrs ) this.id = attrs[this.idAttribute];
+
+		// compute changes vs. current, and cumulative changes vs. previous
 		for( var attr in attrs ){
 			val = attrs[attr];
-			var prev = this.attributes[attr];
-			// compare: strict for primitives, JSON for plain objects/arrays.
-			// JSON.stringify throws on circular structures (DOM nodes, view
-			// instances) - in that case assume the value changed.
-			var changed;
-			if( val !== null && typeof val === "object" ){
-				try { changed = JSON.stringify(prev) !== JSON.stringify(val); }
-				catch( e ){ changed = true; }
-			} else {
-				changed = prev !== val;
-			}
-			if( changed ){
-				this.attributes[attr] = val;
-				changes.push( attr );
-			}
+			if( !_.isEqual( current[attr], val ) ) changes.push( attr );
+			if( !_.isEqual( prev[attr], val ) ) this.changed[attr] = val;
+			else delete this.changed[attr];
+			if( unset ) delete current[attr]; else current[attr] = val;
 		}
 
-		// fire granular change:<attr> events, then a single change
-		if( !silent && changes.length ){
+		// fire granular change:<attr> events, then a single change (once, even for
+		// nested sets, via _pending)
+		if( !silent ){
+			if( changes.length ) this._pending = options;
 			for( var i = 0; i < changes.length; i++ ){
-				this.trigger( 'change:' + changes[i], this, this.attributes[ changes[i] ], options );
+				this.trigger( 'change:' + changes[i], this, current[changes[i]], options );
 			}
-			this.trigger( 'change', this, options );
 		}
 
+		if( changing ) return this;
+		if( !silent ){
+			while( this._pending ){
+				options = this._pending;
+				this._pending = false;
+				this.trigger( 'change', this, options );
+			}
+		}
+		this._pending = false;
+		this._changing = false;
 		return this;
+	}
+
+	// Validation
+	// - override validate(attrs, options) to return an error to block set/save
+	_validate( attrs, options ){
+		if( !options.validate || !this.validate ) return true;
+		attrs = _.extend({}, this.attributes, attrs);
+		var error = this.validationError = this.validate( attrs, options ) || null;
+		if( !error ) return true;
+		this.trigger( 'invalid', this, error, _.extend({}, options, { validationError: error }) );
+		return false;
+	}
+
+	// Change tracking
+
+	hasChanged( attr ){
+		if( attr == null ) return !_.isEmpty( this.changed );
+		return this.changed ? ( attr in this.changed ) : false;
+	}
+
+	changedAttributes( diff ){
+		if( !diff ) return this.hasChanged() ? _.extend({}, this.changed) : false;
+		var old = this._previousAttributes;
+		var changed = {}, has = false;
+		for( var attr in diff ){
+			if( _.isEqual( old[attr], diff[attr] ) ) continue;
+			changed[attr] = diff[attr];
+			has = true;
+		}
+		return has ? changed : false;
+	}
+
+	previous( attr ){
+		if( attr == null || !this._previousAttributes ) return null;
+		return this._previousAttributes[attr];
+	}
+
+	previousAttributes(){
+		return _.extend({}, this._previousAttributes);
 	}
 
 	// #63 reset model to its default values
@@ -680,7 +739,7 @@ class Model extends Base {
 		// SET
 		if( data ){
 			// namespace by id when available
-			if( data.id ) name += "_" + data.id;
+			if( data[this.idAttribute] ) name += "_" + data[this.idAttribute];
 			// clone so we don't mutate the source object
 			var payload = _.extend({}, data);
 			// exclude configured keys
@@ -695,7 +754,7 @@ class Model extends Base {
 			return store.set( name, value );
 		}
 		// GET
-		if( this.get("id") ) name += "_" + this.get("id");
+		if( this.get(this.idAttribute) ) name += "_" + this.get(this.idAttribute);
 		var cached = store.get( name );
 		if( !cached ) return false;
 		cached = JSON.parse( cached );
@@ -712,7 +771,7 @@ class Model extends Base {
 
 	// a model is considered "new" until it has been assigned an id
 	isNew(){
-		return !this.has("id");
+		return !this.has( this.idAttribute );
 	}
 
 	/**
@@ -741,8 +800,14 @@ class Model extends Base {
 	 */
 	save( attrs, options ){
 		options = options || {};
-		// optimistically set the attributes locally
-		if( attrs ) this.set( attrs, options );
+		// validate by default on save
+		if( options.validate === undefined ) options.validate = true;
+		// optimistically set the attributes locally (abort if invalid)
+		if( attrs ){
+			if( !this.set( attrs, options ) ) return false;
+		} else if( !this._validate({}, options) ){
+			return false;
+		}
 		var self = this;
 		var success = options.success;
 		options.attrs = options.attrs || this.toJSON();
@@ -3138,6 +3203,14 @@ class Utils {
 
 	isFunction( obj ){
 		return typeof obj === "function";
+	}
+
+	// shallow value equality: strict for primitives, JSON for plain objects/arrays
+	// (guarded, so circular structures compare unequal rather than throwing)
+	isEqual( a, b ){
+		if( a === b ) return true;
+		if( a === null || b === null || typeof a !== "object" || typeof b !== "object" ) return false;
+		try { return JSON.stringify(a) === JSON.stringify(b); } catch(e){ return false; }
 	}
 
 	// copy the properties of `obj` onto this utils instance (used to register a
