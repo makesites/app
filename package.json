@@ -51,6 +51,7 @@
 		"terser": ">=5.14.2"
 	},
 	"scripts": {
-		"build": "./build/index.js"
+		"build": "./build/index.js",
+		"test": "node --test"
 	}
 }
