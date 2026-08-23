@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.7.0 (Sun, 23 Aug 2026 13:00:51 GMT)
+ * Version: 0.7.0 (Sun, 23 Aug 2026 13:02:46 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -573,10 +573,22 @@ class Model extends Base {
 			var cache = this.cache();
 			if( cache ) this.set( cache );
 		}
-		// auto-fetch if no models are passed
-		if( this.options.autofetch && !_.isUndefined(this.url) ){
-				this.fetch();
+		// auto-fetch when a url actually resolves. (Testing `this.url` no longer
+		// works: since commit 29 every Model inherits a default url() method, so
+		// the old guard was always true and autofetch threw
+		// `A "url" property or function must be specified` from the constructor.)
+		if( this.options.autofetch && _.result(this, 'url') ){
+			this._autofetch();
 		}
+	}
+
+	// autofetch is fire-and-forget: failures are reported through the "error"
+	// event that sync() already fires, so the promise rejection is absorbed here
+	// rather than surfacing as an unhandled rejection out of a constructor
+	_autofetch(){
+		var request = this.fetch();
+		if( request && typeof request.catch === "function" ) request.catch(function(){});
+		return request;
 	}
 
 	// Getter/Setter
@@ -861,8 +873,12 @@ class Model extends Base {
 
 	// Helper functions
 	// - check if the app is online
+	// `app` is a global published by the APP facade; referencing it directly
+	// threw a ReferenceError whenever no app had been instantiated (or outside a
+	// browser), because `_.isUndefined(app)` still evaluates `app`. Only `typeof`
+	// is safe on an undeclared identifier.
 	isOnline(){
-		return ( !_.isUndefined( app ) ) ? app.state.online : true;
+		return ( typeof app !== "undefined" && app && app.state ) ? app.state.online : true;
 	}
 
 	getValue (object, prop) {
@@ -1622,10 +1638,17 @@ class Collection extends Base {
 			var cache = this.cache();
 			if( cache ) this.add( cache );
 		}
-		// auto-fetch if no models are passed
-		if( this.options.autofetch && _.isEmpty(models) && this.url ){
-			this.fetch();
+		// auto-fetch if no models are passed (and a url actually resolves)
+		if( this.options.autofetch && _.isEmpty(models) && _.result(this, 'url') ){
+			this._autofetch();
 		}
+	}
+
+	// see Model#_autofetch - fire-and-forget, failures surface as "error" events
+	_autofetch(){
+		var request = this.fetch();
+		if( request && typeof request.catch === "function" ) request.catch(function(){});
+		return request;
 	}
 /*
 	render(){
@@ -2132,8 +2155,10 @@ class Collection extends Base {
 	}
 
 	// - check if the app is online
+	// see Model#isOnline: only `typeof` is safe on the (possibly undeclared)
+	// `app` global that the APP facade publishes
 	isOnline(){
-		return ( !_.isUndefined( app ) ) ? app.state.online : true;
+		return ( typeof app !== "undefined" && app && app.state ) ? app.state.online : true;
 	}
 
 }
