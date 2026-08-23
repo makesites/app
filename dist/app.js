@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.8.0 (Sun, 23 Aug 2026 17:21:22 GMT)
+ * Version: 0.8.0 (Sun, 23 Aug 2026 17:39:45 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -2855,14 +2855,45 @@ var Layout = class extends View {
   get(view) {
     return this.views[view];
   }
-  // removes a view
+  /**
+   * With a name, removes that child view (what this method has always done).
+   * With no arguments, tears the layout itself down — the `View#remove()`
+   * contract.
+   *
+   * The two used to be the same method with incompatible signatures, so
+   * `layout.remove()` silently did nothing: it looked up `this.views[undefined]`,
+   * found nothing and returned. A Layout could therefore never be torn down,
+   * including through `app.views.remove( name )`, which calls `view.remove()`.
+   * `removeView( name )` is the clearer name for the child-view case; `remove( name )`
+   * still works.
+   * @param {string} [name]
+   * @returns {this}
+   */
   remove(name) {
+    if (name !== void 0) return this.removeView(name);
+    this.stopListening();
+    this.undelegateEvents();
+    if (this.el && this._onClick) {
+      this.el.removeEventListener("click", this._onClick);
+      this._onClick = null;
+    }
+    for (var name_ in this.views) this.removeView(name_);
+    return this;
+  }
+  /**
+   * Remove a registered child view: drops the layout's bindings to it and its
+   * data, tears the view down, and forgets it.
+   * @param {string} name
+   * @returns {this}
+   */
+  removeView(name) {
     var view = this.get(name);
-    if (_.isUndefined(view)) return;
+    if (_.isUndefined(view)) return this;
     this.stopListening(view);
     if (view.data) this.stopListening(view.data);
     view.remove();
     delete this.views[name];
+    return this;
   }
   findLink(target) {
     var link = target.tagName != "A" ? target.closest("a") : target;
