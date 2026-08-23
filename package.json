@@ -21,11 +21,12 @@
 	"exports": {
 		".": "./dist/app.js",
 		"./min": "./dist/app.min.js",
-		"./src": "./lib/main.js"
+		"./package.json": "./package.json"
 	},
 	"files": [
 		"dist",
-		"lib"
+		"lib",
+		"!lib/main.js"
 	],
 	"keywords": [
 		"app",
@@ -42,7 +43,7 @@
 		"url": "https://github.com/makesites/app.git"
 	},
 	"engines": {
-		"node": ">=10.x.x"
+		"node": ">=18.0.0"
 	},
 	"devDependencies": {
 		"commander": "10.x.x",
