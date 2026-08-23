@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.7.0 (Sun, 23 Aug 2026 13:20:07 GMT)
+ * Version: 0.7.0 (Sun, 23 Aug 2026 13:24:15 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -774,8 +774,8 @@ class Model extends Base {
 	// with no argument to retrieve it. Configure via options.cacheOptions:
 	// { cache_key, cache_exclude:[], cache_timestamp }.
 	cache( data ){
-		// no storage engine available, nothing to do
-		if( typeof localStorage === "undefined" ) return false;
+		// no usable storage engine (SSR, private mode, blocked site data)
+		if( !store.available() ) return false;
 		var opts = ( this.options && this.options.cacheOptions ) || {};
 		var name = opts.cache_key || this.name || "model";
 		// SET
@@ -2160,7 +2160,8 @@ class Collection extends Base {
 	// stores/retrieves the collection as a list of model ids in localStorage,
 	// resolving each id back to its individually-cached model on read.
 	cache( data ){
-		if( typeof localStorage === "undefined" ) return false;
+		// no usable storage engine (SSR, private mode, blocked site data)
+		if( !store.available() ) return false;
 		var opts = ( this.options && this.options.cacheOptions ) || {};
 		var name = opts.cache_key || this.name || this.cid;
 		// SET: store just the ids of the models
@@ -2485,16 +2486,21 @@ class Layout extends View {
 		// replace the whole URL if supplied
 		if( this.options.url ) this.url = this.options.url;
 
-		// pick a persistance solution
-		if( !this.options.persist && typeof sessionStorage != "undefined" && sessionStorage !== null ){
-			// choose localStorage
+		// pick a persistance solution. These are capability checks, not `typeof`
+		// checks: Node >= 22 defines localStorage/sessionStorage globals that may
+		// have no working methods, and a browser with site data blocked exposes
+		// the object but throws on access (see the note in cache.js).
+		if( !this.options.persist && sessionStore.available() ){
 			this.store = sessionStore;
-		} else if( this.options.persist && typeof localStorage != "undefined" && localStorage !== null ){
-			// choose localStorage
+		} else if( this.options.persist && localStore.available() ){
 			this.store = localStore;
-		} else {
+		} else if( cookieStore.available() ){
 			// otherwise we need to store data in a cookie
 			this.store = cookieStore;
+		} else {
+			// no browser storage at all (SSR): keep the session in memory so the
+			// model still works for the life of the process
+			this.store = memoryStore;
 		}
 
 		// try loading the session
@@ -2614,41 +2620,65 @@ class Layout extends View {
 
 
 // Stores
+// Each exposes the same tiny contract: available() / get() / set() / check() /
+// clear(). `available()` is a capability probe rather than a `typeof` check -
+// see the note in cache.js - and the accessors never throw, so a locked-down
+// browser degrades instead of breaking the session.
+// `check( name )` uniformly answers "is this slot EMPTY?" (cookieStore used to
+// answer the opposite, which made the three implementations disagree).
+
 let sessionStore = {
+	available : function(){
+		try {
+			return typeof sessionStorage !== "undefined" && sessionStorage !== null
+				&& typeof sessionStorage.getItem === "function"
+				&& typeof sessionStorage.setItem === "function";
+		} catch( e ){ return false; }
+	},
 	get : function( name ) {
-		return sessionStorage.getItem( name );
+		try { return sessionStorage.getItem( name ); } catch( e ){ return null; }
 	},
 	set : function( name, val ){
-		// validation first?
-		return sessionStorage.setItem( name, val );
+		try { return sessionStorage.setItem( name, val ); } catch( e ){ return false; }
 	},
 	check : function( name ){
-		return ( sessionStorage.getItem( name ) == null );
+		return sessionStore.get( name ) == null;
 	},
 	clear: function( name ){
 		// actually just removing the session...
-		return sessionStorage.removeItem( name );
+		try { return sessionStorage.removeItem( name ); } catch( e ){ return false; }
 	}
 };
 
 let localStore = {
+	available : function(){
+		try {
+			return typeof localStorage !== "undefined" && localStorage !== null
+				&& typeof localStorage.getItem === "function"
+				&& typeof localStorage.setItem === "function";
+		} catch( e ){ return false; }
+	},
 	get : function( name ) {
-		return localStorage.getItem( name );
+		try { return localStorage.getItem( name ); } catch( e ){ return null; }
 	},
 	set : function( name, val ){
-		// validation first?
-		return localStorage.setItem( name, val );
+		try { return localStorage.setItem( name, val ); } catch( e ){ return false; }
 	},
 	check : function( name ){
-		return ( localStorage.getItem( name ) == null );
+		return localStore.get( name ) == null;
 	},
 	clear: function( name ){
 		// actually just removing the session...
-		return localStorage.removeItem( name );
+		try { return localStorage.removeItem( name ); } catch( e ){ return false; }
 	}
 };
 
 let cookieStore = {
+	available : function(){
+		try { return typeof document !== "undefined" && typeof document.cookie === "string"; }
+		catch( e ){ return false; }
+	},
+
 	get : function( name ) {
 		var i,key,value,cookies=document.cookie.split(";");
 		for (i=0;i<cookies.length;i++){
@@ -2659,6 +2689,7 @@ let cookieStore = {
 				return decodeURIComponent(value);
 			}
 		}
+		return null;
 	},
 
 	set : function( name, val ){
@@ -2670,17 +2701,23 @@ let cookieStore = {
 	},
 
 	check : function( name ){
-		var cookie=this.get( name );
-		if (cookie!=null && cookie!=""){
-			return true;
-		} else {
-			return false;
-		}
+		return cookieStore.get( name ) == null;
 	},
 
 	clear: function( name ) {
 		document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
 	}
+};
+
+// last-resort, in-process store so a Session constructed without any browser
+// storage (SSR, a worker without cookies) still behaves instead of throwing
+let memoryStore = {
+	_data : Object.create( null ),
+	available : function(){ return true; },
+	get : function( name ){ return ( name in memoryStore._data ) ? memoryStore._data[name] : null; },
+	set : function( name, val ){ memoryStore._data[name] = String( val ); return true; },
+	check : function( name ){ return memoryStore.get( name ) == null; },
+	clear : function( name ){ delete memoryStore._data[name]; return true; }
 };
 
 
@@ -2818,11 +2855,31 @@ class Template extends Model {
 
 // Storage helper - a module-scoped singleton so it isn't duplicated across
 // every instance (as it was when attached to the prototype in the legacy plugin).
+//
+// `available()` is a capability check, not a `typeof` check. A bare
+// `typeof localStorage === "undefined"` guard is not enough any more:
+// - Node >= 22 defines a `localStorage` global that is an empty object unless
+//   the runtime was started with a valid `--localstorage-file`, so the methods
+//   are missing and every cache call threw `localStorage.getItem is not a
+//   function` under SSR / tests;
+// - browsers in private mode, or with site data blocked, expose the object but
+//   throw on access.
 var store = {
-	get   : function( name ){ return localStorage.getItem( name ); },
-	set   : function( name, val ){ return localStorage.setItem( name, val ); },
-	check : function( name ){ return localStorage.getItem( name ) === null; },
-	clear : function( name ){ return localStorage.removeItem( name ); }
+	available : function(){
+		try {
+			return typeof localStorage !== "undefined"
+				&& localStorage !== null
+				&& typeof localStorage.getItem === "function"
+				&& typeof localStorage.setItem === "function";
+		} catch( e ){
+			// accessing the global itself can throw when site data is blocked
+			return false;
+		}
+	},
+	get   : function( name ){ try { return localStorage.getItem( name ); } catch( e ){ return null; } },
+	set   : function( name, val ){ try { return localStorage.setItem( name, val ); } catch( e ){ return false; } },
+	check : function( name ){ return store.get( name ) === null; },
+	clear : function( name ){ try { return localStorage.removeItem( name ); } catch( e ){ return false; } }
 };
 
 /*
