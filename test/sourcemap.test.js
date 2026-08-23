@@ -1,7 +1,8 @@
 // dist source maps — run with: npm test  (after npm run build)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,30 +26,35 @@ function decodeVLQ( segment ){
 	return values;
 }
 
-// generatedLine -> { source, line } for every mapped line
+// generatedLine -> { source, line }, taking the first segment on each line
 function decodeMappings( mappings ){
 	const origins = [];
 	let source = 0, line = 0;
 	mappings.split(";").forEach(( entry, generated ) => {
 		if( !entry ) return;
-		const [ , sourceDelta, lineDelta ] = decodeVLQ( entry.split(",")[0] );
-		source += sourceDelta;
-		line += lineDelta;
-		origins[ generated ] = { source, line };
+		let first = null;
+		for( const segment of entry.split(",") ){
+			const [ , sourceDelta, lineDelta ] = decodeVLQ( segment );
+			if( sourceDelta === undefined ) continue;
+			source += sourceDelta;
+			line += lineDelta;
+			if( first === null ) first = { source, line };
+		}
+		if( first ) origins[ generated ] = first;
 	});
 	return origins;
 }
 
 test("dist/app.js links to its source map", () => {
-	assert.match( read("dist", "app.js"), /\n\/\/# sourceMappingURL=app\.js\.map\n?$/ );
+	assert.match( read("dist", "app.js"), /\/\/# sourceMappingURL=app\.js\.map/ );
 });
 
-test("dist/app.js.map is a well-formed v3 map over lib/", () => {
+test("dist/app.js.map is a well-formed v3 map over the whole module graph", () => {
 	const map = JSON.parse( read("dist", "app.js.map") );
 	assert.equal( map.version, 3 );
-	assert.equal( map.file, "app.js" );
-	assert.ok( map.sources.length >= 14, "every concatenated module is listed" );
+	assert.ok( map.sources.length >= 17, `expected the whole graph, got ${map.sources.length}` );
 	for( const source of map.sources ) assert.match( source, /^\.\.\/lib\/[a-z]+\.js$/ );
+	assert.ok( map.sources.includes("../lib/main.js"), "the entry point is mapped" );
 	assert.equal( map.sourcesContent.length, map.sources.length, "self-contained" );
 	assert.ok( map.mappings.length > 1000 );
 });
@@ -56,44 +62,64 @@ test("dist/app.js.map is a well-formed v3 map over lib/", () => {
 test("sourcesContent matches the files on disk", () => {
 	const map = JSON.parse( read("dist", "app.js.map") );
 	map.sources.forEach(( source, index ) => {
-		assert.equal(
-			map.sourcesContent[index],
-			read( "dist", source ),
-			`${source} content is stale`
-		);
+		assert.equal( map.sourcesContent[index], read( "dist", source ), `${source} is stale` );
 	});
 });
 
-test("a known bundle line decodes back to the right file and line", () => {
+test("every module in the graph carries mappings", () => {
+	const map = JSON.parse( read("dist", "app.js.map") );
+	const used = new Set( decodeMappings( map.mappings ).filter(Boolean).map( o => o.source ) );
+	const unmapped = map.sources.filter( ( source, index ) => !used.has( index ) );
+	assert.deepEqual( unmapped, [], "a listed source with no mappings means the map is wrong" );
+});
+
+test("a bundle line decodes back to the module it came from", () => {
 	const map = JSON.parse( read("dist", "app.js.map") );
 	const origins = decodeMappings( map.mappings );
 	const bundle = read("dist", "app.js").split("\n");
 
-	// pick a landmark that appears exactly once in the bundle
-	const marker = "class Collection extends Base {";
-	const generated = bundle.findIndex( l => l.startsWith( marker ) );
+	// A comment landmark, not a code one: a bundler reformats code (esbuild
+	// rewrites `class X extends Y {` and normalises whitespace) but preserves
+	// comments verbatim, so this stays valid if the bundler ever changes.
+	const marker = "resolve the id of a model instance";
+	const generated = bundle.findIndex( line => line.includes( marker ) );
 	assert.ok( generated > -1, "landmark found in the bundle" );
 
 	const origin = origins[ generated ];
 	assert.ok( origin, "the landmark line is mapped" );
 	assert.equal( map.sources[ origin.source ], "../lib/collection.js" );
-
-	const original = read("lib", "collection.js").split("\n");
-	assert.equal(
-		original[ origin.line ],
-		bundle[ generated ],
-		"the mapped original line is the same text"
-	);
 });
 
-test("dist/app.min.js.map chains back to lib/ through terser", () => {
+test("dist/app.min.js has a map that still points at lib/", () => {
 	assert.match( read("dist", "app.min.js"), /sourceMappingURL=app\.min\.js\.map/ );
 	const map = JSON.parse( read("dist", "app.min.js.map") );
 	assert.equal( map.version, 3 );
-	// terser rewrites the paths, but they must still resolve to the lib sources
 	assert.ok(
-		map.sources.some( s => s.includes("lib/") && s.endsWith(".js") ),
-		`minified map points at lib/, got: ${map.sources.slice(0, 3).join(", ")}`
+		map.sources.every( source => source.startsWith("../lib/") ),
+		`minified map should point at lib/, got: ${map.sources.slice(0, 3).join(", ")}`
 	);
 	assert.ok( map.mappings.length > 1000 );
 });
+
+// The guarantee that actually matters to a consumer: a stack trace from the
+// shipped bundle names the original file, with a line and column.
+for( const bundle of [ "app.js", "app.min.js" ] ){
+	test(`a stack trace from dist/${bundle} resolves to the original source`, () => {
+		const probe = join( root, `.sourcemap-probe-${bundle}.mjs` );
+		writeFileSync( probe, [
+			`const { Model } = await import("./dist/${bundle}");`,
+			`try { await new Model().fetch(); }`,
+			`catch ( error ) { console.log( error.stack.split("\\n")[1].trim() ); }`
+		].join("\n") );
+		try {
+			const frame = execFileSync(
+				process.execPath, [ "--enable-source-maps", probe ],
+				{ cwd: root, encoding: "utf8" }
+			).trim();
+			// sync.js throws when no url resolves - the frame must name that file
+			assert.match( frame, /lib[/\\]sync\.js:\d+:\d+/, `got: ${frame}` );
+		} finally {
+			rmSync( probe, { force: true } );
+		}
+	});
+}

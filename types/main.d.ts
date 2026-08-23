@@ -1,10 +1,3 @@
-/*
- * main
- * The package entry point: pulls the module graph together and defines the
- * public surface. The build bundles this into dist/app.js.
- *
- * Copyright © Makesites.org
- */
 import { APP } from "./app.js";
 import { Observable } from "./observable.js";
 import { Model } from "./model.js";
@@ -18,15 +11,7 @@ import { Template } from "./template.js";
 import { Session } from "./session.js";
 import { sync } from "./sync.js";
 import { Utils, _ } from "./utils.js";
-import {
-	TouchMixin, MouseMixin, ScrollMixin, MotionMixin, GamepadMixin, KeysMixin
-} from "./input.js";
-
-// expose on the global for classic script-tag use (guarded so the bundle also
-// imports cleanly under Node/SSR)
-if ( typeof window !== "undefined" ) window.APP = APP;
-
+import { TouchMixin, MouseMixin, ScrollMixin, MotionMixin, GamepadMixin, KeysMixin } from "./input.js";
 export { APP, Observable, Model, View, Controller, Router, history, Events, Collection, Layout, Template, Session, sync };
-// the shared utility belt the framework classes themselves use, plus its class
 export { _, Utils };
 export { TouchMixin, MouseMixin, ScrollMixin, MotionMixin, GamepadMixin, KeysMixin };

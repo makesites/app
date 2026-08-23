@@ -20,17 +20,17 @@
 	"module": "./dist/app.js",
 	"exports": {
 		".": {
-			"types": "./types/app.d.ts",
+			"types": "./types/main.d.ts",
 			"default": "./dist/app.js"
 		},
 		"./min": "./dist/app.min.js",
+		"./src": "./lib/main.js",
 		"./package.json": "./package.json"
 	},
 	"files": [
 		"dist",
 		"lib",
-		"types",
-		"!lib/main.js"
+		"types"
 	],
 	"keywords": [
 		"app",
@@ -53,11 +53,11 @@
 		"@eslint/js": "^10.0.1",
 		"@playwright/test": "^1.62.1",
 		"commander": "10.x.x",
+		"esbuild": "^0.28.2",
 		"eslint": "^10.9.0",
 		"globals": "^17.11.0",
 		"hbs": ">4.1.2",
 		"jsdom": "^29.1.1",
-		"terser": ">=5.14.2",
 		"typescript": "^7.0.2"
 	},
 	"scripts": {
@@ -68,5 +68,5 @@
 		"lint": "eslint .",
 		"test:browser": "playwright test"
 	},
-	"types": "./types/app.d.ts"
+	"types": "./types/main.d.ts"
 }

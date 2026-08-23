@@ -362,20 +362,34 @@ npm run types         # regenerate types/app.d.ts and type-check a sample consum
 npm run test:browser  # Playwright smoke tests against the built bundles
 ```
 
-The concatenation manifest (dependency order) lives in `build/index.js`. The
-suite runs on the built bundle, so build before testing (CI does). Both bundles
-ship **source maps** that resolve back to `lib/*.js`.
+`lib/*.js` are real ES modules; the build bundles the graph from `lib/main.js`
+with esbuild — there is no hand-maintained file order. The test suite runs on the
+built bundle, so build before testing (CI does). Both bundles ship **source maps**
+that resolve back to `lib/*.js`, with accurate line *and* column.
+
+The library ships as **one bundle**, deliberately. Tree-shaking is not a goal
+here: the entire optional surface (input mixins, session, cache) is about 3 KB
+gzipped, which is not worth the constraints that keeping a library side-effect
+free imposes on its design.
+
+If you do want the raw module graph — to bundle it yourself, or to import a
+single class — it is published too:
+
+```javascript
+import { Model } from "@makesites/app/src";   // lib/main.js, unbundled
+```
 
 The shipped library has **no runtime dependencies**. The devDependencies are
-`terser` (minified bundle), `typescript` (declarations), `eslint`, `jsdom` (the
+`esbuild` (bundle + minify), `typescript` (declarations), `eslint`, `jsdom` (the
 view layer is tested against a real DOM) and `@playwright/test` (browser smoke
 tests, which need `npx playwright install chromium` and are not part of
 `npm test`).
 
 ## TypeScript
 
-Declarations are generated from the JSDoc and published as `types/app.d.ts`, so
-the package works out of the box:
+Declarations are generated from the JSDoc on the module graph and published as
+`types/` (one file per module, entry `types/main.d.ts`), so the package works out
+of the box:
 
 ```typescript
 import { Model, Collection } from "@makesites/app";

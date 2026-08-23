@@ -17,8 +17,8 @@ was dropped as a goal (the whole optional surface is ~3.3 KB gzipped, not worth
 the architectural constraints), the View split was replaced by making its
 machinery lazy (same benefit, no API change), and the Backbone-conformance
 renames were dropped in favour of the library's own `data` / `defaults`
-conventions. Real ES modules — for an explicit dependency graph, still shipping a
-single bundle — remain ahead.
+conventions. Real ES modules landed last — for an explicit dependency graph,
+still shipping a single bundle.
 
 ### Breaking
 
@@ -44,8 +44,8 @@ single bundle — remain ahead.
 - **TypeScript declarations.** `types/app.d.ts` is generated from the JSDoc and
   shipped; `npm run types` regenerates it and type-checks a sample consumer that
   imports by package name, so the whole resolution chain is covered.
-- **Source maps** for both bundles. `dist/app.min.js.map` chains through terser
-  back to `lib/*.js`, so a minified stack trace resolves to the original source.
+- **Source maps** for both bundles, resolving to `lib/*.js` with accurate line
+  and column — a minified stack trace names the original source.
 - **`Observable`** is exported — the event system on its own, so any class can
   emit without pretending to be a `Model` (the role `Backbone.Events` fills).
 - **`listenToOnce( obj, name, callback )`** on the event API.
@@ -65,6 +65,13 @@ single bundle — remain ahead.
 
 ### Changed
 
+- **`lib/` is a real ES module graph**, bundled with esbuild instead of
+  concatenated into a shared scope from a hand-ordered manifest. The library
+  still ships as a single bundle; the win is an explicit dependency graph, not
+  bytes. `lib/main.js` is now a real entry module, published and exported as
+  `@makesites/app/src`, and declarations are generated from the source rather
+  than the bundle (so the class hierarchy survives). `terser` is no longer a
+  dependency.
 - **View machinery is built on demand.** The IntersectionObserver, the resize
   registration, the `Template` and the state `Model` are no longer created up
   front. Measured on 500 list rows: construction 23.4 ms → 10.7 ms, 500

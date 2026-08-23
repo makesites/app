@@ -24,42 +24,50 @@ function exportedNames( source ){
 	return names;
 }
 
-test("types/app.d.ts is present and declared in package.json", () => {
-	assert.ok( existsSync( join( root, "types", "app.d.ts" ) ), "run `npm run build`" );
+test("types/ is present and declared in package.json", () => {
+	// one declaration file per module, mirroring lib/ — generated from the source
+	// graph rather than from the bundle, so the class hierarchy survives
+	for( const file of [ "main.d.ts", "model.d.ts", "collection.d.ts", "view.d.ts" ] ){
+		assert.ok( existsSync( join( root, "types", file ) ), `missing types/${file} — run \`npm run build\`` );
+	}
 	const pkg = JSON.parse( read("package.json") );
-	assert.equal( pkg.types, "./types/app.d.ts" );
-	assert.equal( pkg.exports["."].types, "./types/app.d.ts" );
+	assert.equal( pkg.types, "./types/main.d.ts" );
+	assert.equal( pkg.exports["."].types, "./types/main.d.ts" );
 	assert.ok( pkg.files.includes("types"), "types/ is published" );
 });
 
 test("the declarations export exactly what the bundle exports", () => {
 	const fromBundle = exportedNames( read("dist", "app.js") );
-	const fromTypes = exportedNames( read("types", "app.d.ts") );
+	const fromTypes = exportedNames( read("types", "main.d.ts") );
 
 	const missing = [...fromBundle].filter( name => !fromTypes.has( name ) );
 	assert.deepEqual( missing, [], "declarations are stale - re-run `npm run build`" );
 	assert.ok( fromBundle.size >= 18, `expected the full public surface, got ${fromBundle.size}` );
 });
 
-test("the public classes carry real signatures, not just `any`", () => {
-	const types = read("types", "app.d.ts");
-	for( const declaration of [
-		"declare class Model extends Base",
-		"declare class Collection extends Base",
-		"declare class View extends Base",
-		"declare class Controller extends Router",
-		"declare class Events extends Base",
-		"declare class APP"
-	] ) assert.ok( types.includes( declaration ), `missing: ${declaration}` );
+test("the class hierarchy survives into the declarations", () => {
+	// regression: generating these from the *bundle* produced
+	// `declare var Model: {...}` — esbuild rewrites `class X extends Y {` to
+	// `var X = class extends Y {`, so every `extends` relationship was lost
+	for( const [ file, declaration ] of [
+		[ "model.d.ts", "declare class Model extends Base" ],
+		[ "collection.d.ts", "declare class Collection extends Base" ],
+		[ "view.d.ts", "declare class View extends Base" ],
+		[ "controller.d.ts", "declare class Controller extends Router" ],
+		[ "events.d.ts", "declare class Events extends Base" ],
+		[ "base.d.ts", "declare class Base extends Observable" ],
+		[ "app.d.ts", "declare class APP" ]
+	] ) assert.ok( read( "types", file ).includes( declaration ), `missing in ${file}: ${declaration}` );
+});
 
-	// a spot-check that the JSDoc actually made it through as types
-	assert.match( types, /on\(name: string, callback: EventCallback, context\?: Object\): this/ );
-	assert.match( types, /trigger\(name: string, \.\.\.args: any\[\]\): this/ );
-	assert.match( types, /type SyncOptions = \{/ );
+test("the JSDoc made it through as real types", () => {
+	assert.match( read("types", "observable.d.ts"), /on\(name: string, callback: EventCallback, context\?: Object\): this/ );
+	assert.match( read("types", "observable.d.ts"), /trigger\(name: string, \.\.\.args: any\[\]\): this/ );
+	assert.match( read("types", "sync.d.ts"), /type SyncOptions = \{/ );
 });
 
 test("optional parameters are declared optional", () => {
-	const types = read("types", "app.d.ts");
+	const types = read("types", "collection.d.ts") + read("types", "template.d.ts");
 	// regression: these emitted as REQUIRED, so `collection.add(x)` and
 	// `new Template(html)` were type errors for consumers
 	assert.match( types, /add\(models: \(Object \| Model \| any\[\]\), options\?: Object\)/ );
