@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.7.0 (Sun, 23 Aug 2026 13:02:46 GMT)
+ * Version: 0.7.0 (Sun, 23 Aug 2026 13:12:32 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -168,17 +168,35 @@ class Base {
 		//Backbone.View.prototype.remove.call(this);
 	}
 
+	// Remove DOM listeners this object registered on `this.el`.
+	// - no arguments: every delegated listener (same as undelegateEvents)
+	// - a type: the delegated listeners for that event type
+	// - a type + callback: that specific listener
+	//
+	// This used to "remove all listeners" by replacing `this.el` with a clone of
+	// itself. That was destructive: `this.el` kept pointing at the *original*,
+	// which replaceWith had just detached from the document — so a View that was
+	// handed an existing element (`new View({ el: "#main" })`) rendered into an
+	// orphan node while an empty clone sat where the element used to be, and
+	// `_inDOM()` then re-appended the orphan to the end of <body>, duplicating
+	// the id. It also silently dropped listeners the framework never added.
+	// Delegated listeners are tracked in `_delegateEvents`, so no clone is needed.
 	unbind( name, cb ){
-		if( !name ){
-			// Remove all event listeners from Element by cloning it
-			this.el.replaceWith( this.el.cloneNode(true) );
-		} else if( !cb ) {
-			// remove specific event
-			this.el.removeEventListener( name );
-		} else {
-			// remove specific event
-			this.el.removeEventListener( name, cb );
+		if( !name ) return this.undelegateEvents();
+		var listeners = this._delegateEvents || [];
+		var remaining = [];
+		for( var i = 0; i < listeners.length; i++ ){
+			var listener = listeners[i];
+			if( listener.type === name && ( !cb || listener.handler === cb ) ){
+				if( this.el ) this.el.removeEventListener( listener.type, listener.handler );
+			} else {
+				remaining.push( listener );
+			}
 		}
+		this._delegateEvents = remaining;
+		// also drop a listener registered directly (not through delegateEvents)
+		if( cb && this.el ) this.el.removeEventListener( name, cb );
+		return this;
 	}
 
 	delegateEvents( events ){
@@ -920,7 +938,13 @@ class View extends Base {
 		super( options );
 		// element
 		this.el = this._getEl( options );
-		// find the data
+		// data sources. The Backbone-style `model` / `collection` options were
+		// read here but never assigned, so `this.model` was always undefined:
+		// `new View({ model })` bound to nothing and `this.model.get(...)` inside
+		// a subclass render() threw. Assign them (skipping any subclass accessor,
+		// which cannot be written to), then resolve `data` as before.
+		if( options.model && _.assignable( this, 'model' ) ) this.model = options.model;
+		if( options.collection && _.assignable( this, 'collection' ) ) this.collection = options.collection;
 		this.data = options.data || this.model || this.collection || null;
 		// containers
 		//var state = Backbone.View.prototype.state || new Backbone.Model();
@@ -1053,6 +1077,10 @@ class View extends Base {
 		var data = this.toJSON();
 		// checking instance of template before executing as a function
 		var html = ( template instanceof Function ) ? template( data ) : template;
+		// nothing compiled yet (no `html` / `url` option) - there is no markup to
+		// insert, and blanking the element would destroy its existing content.
+		// Subclasses that override render() are unaffected.
+		if( html == null ) return this._postRender();
 		// find the render target
 		var container = this._findContainer();
 		// saving element reference
@@ -3575,6 +3603,22 @@ class Utils {
 
 	isFunction( obj ){
 		return typeof obj === "function";
+	}
+
+	// Can `obj[name] = value` succeed? False when the name resolves to an
+	// accessor with no setter anywhere on the prototype chain - assigning to one
+	// throws in strict mode (all ES modules are strict), which is what broke
+	// subclass getters before the resolve-merge lifecycle of commit 27. Use this
+	// where a public name genuinely has to be assigned rather than resolved.
+	assignable( obj, name ){
+		var target = obj;
+		while( target ){
+			var descriptor = Object.getOwnPropertyDescriptor( target, name );
+			if( descriptor ) return !!( descriptor.writable || descriptor.set );
+			target = Object.getPrototypeOf( target );
+		}
+		// not declared anywhere - a plain assignment creates it
+		return true;
 	}
 
 	// shallow value equality: strict for primitives, JSON for plain objects/arrays
