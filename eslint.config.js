@@ -103,11 +103,26 @@ export default [
 
 	{
 		// tooling and tests — Node
-		files: ["build/**/*.js", "test/**/*.js"],
+		files: ["build/**/*.js", "test/**/*.js", "browser/server.js", "playwright.config.js"],
 		languageOptions: {
 			ecmaVersion: 2022,
 			sourceType: "module",
 			globals: { ...globals.node }
+		},
+		rules: {
+			"no-unused-vars": ["error", { args: "none", caughtErrors: "none" }]
+		}
+	},
+
+	{
+		// Playwright specs run in Node, but their page.evaluate() callbacks are
+		// serialised and executed in the browser - so both global sets are legal
+		// in the same file
+		files: ["browser/**/*.spec.js"],
+		languageOptions: {
+			ecmaVersion: 2022,
+			sourceType: "module",
+			globals: { ...globals.node, ...globals.browser }
 		},
 		rules: {
 			"no-unused-vars": ["error", { args: "none", caughtErrors: "none" }]

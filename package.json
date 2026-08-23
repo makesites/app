@@ -1,6 +1,6 @@
 {
 	"name": "@makesites/app",
-	"version": "0.7.0",
+	"version": "0.8.0",
 	"description": "A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.",
 	"author": "makesites",
 	"homepage": "http://github.com/makesites/app",
@@ -51,6 +51,7 @@
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
+		"@playwright/test": "^1.62.1",
 		"commander": "10.x.x",
 		"eslint": "^10.9.0",
 		"globals": "^17.11.0",
@@ -64,7 +65,8 @@
 		"types": "tsc -p tsconfig.types.json && tsc -p tsconfig.json",
 		"test": "node --test",
 		"coverage": "node --test --experimental-test-coverage",
-		"lint": "eslint ."
+		"lint": "eslint .",
+		"test:browser": "playwright test"
 	},
 	"types": "./types/app.d.ts"
 }
