@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.8.0 (Sun, 23 Aug 2026 17:39:45 GMT)
+ * Version: 0.8.0 (Sun, 23 Aug 2026 17:44:14 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites

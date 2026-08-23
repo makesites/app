@@ -48,6 +48,9 @@ still shipping a single bundle.
   and column — a minified stack trace names the original source.
 - **`Observable`** is exported — the event system on its own, so any class can
   emit without pretending to be a `Model` (the role `Backbone.Events` fills).
+- **`_` and `Utils` are exported** — the same utility belt the framework classes
+  use, for code that extends them.
+- **`Layout#removeView( name )`** as the child-view API.
 - **`listenToOnce( obj, name, callback )`** on the event API.
 - **View element creation**: `tagName`, `className`, `id` and `attributes` are
   honoured, as options or subclass declarations. Previously ignored.
@@ -88,6 +91,10 @@ still shipping a single bundle.
 
 ### Fixed
 
+- **`Layout#remove()` did nothing.** It overrode `View#remove()` with an
+  incompatible signature (`remove( name )`), so a Layout could never be torn down
+  — including through `app.views.remove()`. `remove()` now tears down and
+  `removeView( name )` manages children; `remove( name )` still works.
 - `_.bindAll` dropped every argument passed to a bound method
   (`greet("Ada","!")` → `"hi undefinedundefined"`).
 - `Collection#set()` deduplicates ids **within a single call** — `add([{id:1},{id:1}])`

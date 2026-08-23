@@ -64,7 +64,7 @@
 		"build": "node build/index.js && npm run types",
 		"types": "tsc -p tsconfig.types.json && tsc -p tsconfig.json",
 		"test": "node --test",
-		"coverage": "node --test --experimental-test-coverage",
+		"coverage": "node --test --experimental-test-coverage --test-coverage-include='dist/app.js'",
 		"lint": "eslint .",
 		"test:browser": "playwright test"
 	},

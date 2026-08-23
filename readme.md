@@ -10,8 +10,8 @@ Underscore, System.js) with native Web APIs: `fetch`, `IntersectionObserver`,
 Coming from Backbone? See [Relationship to Backbone.js](#relationship-to-backbonejs)
 for what carries over and what is deliberately different.
 
-> **Note:** Approaching production-readiness; a test suite ships with the repo.
-> See *Status* below for the remaining rough edges.
+> **Note:** The core is feature-complete, tested (235 tests) and running in CI.
+> See *Status* below for what ships and what is deliberately still open.
 
 
 ## Features
@@ -337,13 +337,24 @@ await profile.fetch(); // uses the cache when offline
 
 ### Input mixins
 
-Compose over any `View`-like class:
+Six composable mixins, each wrapping any `View`-like class and emitting its own
+events:
+
+| mixin | emits | opt-in |
+|---|---|---|
+| `TouchMixin` | `touchstart` / `touchmove` / `touchend`, tracking swipe direction | automatic on a touch screen (`touch: { monitor: false }` to disable) |
+| `MouseMixin` | `mousemove` | `monitorMouse: true` |
+| `ScrollMixin` | `scroll`, with direction and position | `monitorScroll: true` |
+| `MotionMixin` | `deviceorientation` | `monitorMotion: true` |
+| `GamepadMixin` | `gamepad-connect` / `gamepad-disconnect` / `gamepad-update` / `gamepad-buttondown` / `gamepad-buttonup` / `gamepad-axis` | `monitorGamepad: true` |
+| `KeysMixin` | `keydown` / `keyup`, plus a declarative `keys` map | `monitorKeys: true` |
 
 ```javascript
 class Carousel extends TouchMixin(View) {
-  initialize(){ this.on("touchmove", () => { /* ... */ }); }
+  initialize(){ super.initialize(); this.on("touchmove", () => { /* ... */ }); }
 }
 
+// they compose
 class Game extends KeysMixin(GamepadMixin(View)) {
   constructor(o){ super(o); this.keys = { "Escape": "pause", "KeyW": "forward" }; }
   pause(){ /* ... */ }
@@ -420,8 +431,12 @@ remain in `lib/`.
   and `sort`, `remove` / `reset`, an id+cid index behind `get()`, model-event
   forwarding, and the Underscore-parity aggregators
   (`groupBy` / `countBy` / `sortBy` / `invoke` / `partition` / `min` / `max` / `sample`).
-- **View / Layout** — `model` / `collection` binding, delegated `events`,
-  `listenTo` + full teardown on `remove()`, `IntersectionObserver` visibility.
+- **View** — `model` / `collection` binding, `tagName`/`className`/`id`/`attributes`,
+  delegated `events`, `listenTo` + full teardown on `remove()`,
+  `IntersectionObserver` visibility. The observer, the resize registration, the
+  template and the state model are all built on demand.
+- **Layout** — a `<body>`-level view that registers child views; `remove()` tears
+  it down, `removeView( name )` removes one child.
 - **Router / History** — pushState & hashchange, route guards via `execute()`.
 - **sync** — `AbortController` cancel/timeout, opt-in retry with exponential
   backoff + jitter, an app-wide base URL / credentials / headers.
@@ -432,11 +447,27 @@ remain in `lib/`.
 Subclasses can declare `routes`, `events`, `states`, `defaults`, `model`,
 `comparator` and `url` as getters.
 
-Remaining work is architectural rather than corrective, and is tracked in
-`roadmap.md` §2: splitting the God-object `View` into `View` + `AppView`,
-shrinking the `_` utility shim toward native calls, moving to true ES modules
-with a bundler, unifying the `Events` / `defaults` / `data`-vs-`models` naming,
-and removing the `parse()` timer in favour of opt-in cache/session mixins.
+### Known limitations
+
+- **`Layout` does not run `View#initialize()`.** It overrides it completely, so a
+  Layout has no visibility observer, no automatic data binding and no delegated
+  `events` hash — it uses its own `click` handler for link interception. That is
+  the long-standing design; it is written down here because it surprises people.
+- **`Model#url()` requires `urlRoot`, a `url`, or a parent collection.** With none
+  of those it returns `null` and `sync` throws — `autofetch` checks for this, a
+  direct `fetch()` does not.
+- **TypeScript:** `Collection`'s `model` is inferred as a property, so a subclass
+  cannot override it with a getter (TS2611). Pass `{ model: Book }` instead. It
+  works at runtime.
+- **`window.app`** is still published by the facade. It is how third-party plugins
+  detect a running app; replacing it means designing a plugin protocol.
+
+`roadmap.md` records what is left. The architectural pass (§2) is closed: the
+View's machinery is lazy rather than split out, the `_` helpers are native inside
+an unchanged API, `lib/` is a real ES module graph behind a single bundle, the
+naming follows this library's own conventions, and the `parse()` timer is gone.
+What remains is a release, the first real CI run of the browser suite, and the
+Backbone conveniences listed above.
 
 
 ## Relationship to Backbone.js
