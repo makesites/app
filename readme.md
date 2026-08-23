@@ -7,6 +7,9 @@ Layouts, Templates) while replacing the legacy stack (Backbone, jQuery `$.ajax`,
 Underscore, System.js) with native Web APIs: `fetch`, `IntersectionObserver`,
 `DOMParser`, `BroadcastChannel`, the History API and ES Modules.
 
+Coming from Backbone? See [Relationship to Backbone.js](#relationship-to-backbonejs)
+for what carries over and what is deliberately different.
+
 > **Note:** Approaching production-readiness; a test suite ships with the repo.
 > See *Status* below for the remaining rough edges.
 
@@ -80,6 +83,17 @@ app.router.navigate("/home", { trigger: true });
 
 
 ## Core API
+
+### Naming
+
+Two conventions run through the whole library:
+
+- **`data` is the payload.** `Model#data` is its attributes, `Collection#data` is
+  its models, `View#data` is the model or collection it renders. `attributes` and
+  `models` remain as permanent aliases.
+- **`defaults` is the default payload for that class.** Attribute defaults on a
+  Model; option defaults on a View, Collection or Controller. Each class's
+  `defaults` describes the thing that class is about.
 
 ### Model & Collection
 
@@ -383,6 +397,67 @@ shrinking the `_` utility shim toward native calls, moving to true ES modules
 with a bundler, unifying the `Events` / `defaults` / `data`-vs-`models` naming,
 and removing the `parse()` timer in favour of opt-in cache/session mixins.
 
+
+## Relationship to Backbone.js
+
+APP is not a Backbone fork, a port, or a drop-in replacement — you cannot point it
+at a Backbone app and expect it to run. But it would be dishonest to pretend the
+resemblance is accidental: **Backbone.js is the single biggest influence on this
+library's architecture**, and where its conventions are good they have been kept
+deliberately, because they are good — not out of obligation.
+
+If you know Backbone, most of this will already make sense. Where APP departs, it
+is a decision, and the reasoning is below.
+
+### What carries over
+
+| | |
+|---|---|
+| **Events** | `on` / `off` / `once` / `trigger`, `listenTo` / `listenToOnce` / `stopListening`, the `all` catch-all, space-separated names |
+| **Model** | `get` / `set` with `change:<attr>`, `defaults`, `validate`, `idAttribute`, `urlRoot`, `previous` / `changedAttributes` / `hasChanged`, `fetch` / `save` / `destroy`, `parse`, `toJSON`, `isNew` |
+| **Collection** | smart `set` (add / remove / merge), `comparator` and `sort`, `get` / `at`, `pluck` / `where` / `findWhere`, member-event forwarding, the Underscore-style aggregators |
+| **Router** | `:param`, `*splat` and `(optional)` patterns, `navigate`, `execute` as the guard hook, pushState and hashchange |
+| **View** | `el`, the declarative `events` hash with real delegation, `render()`, `remove()`, `setElement`, `tagName` / `className` / `id` / `attributes` |
+| **sync** | one networking seam every model and collection goes through |
+
+### What is deliberately different
+
+- **`class X extends Model`, not `Model.extend({...})`.** The custom-extend shim
+  existed because ES5 had no classes. It does now, so there is nothing to shim.
+- **`data` is the payload, everywhere.** `Model#data`, `Collection#data`,
+  `View#data`. Backbone says `attributes` and `models`; both are kept as
+  permanent aliases, but one word for "the thing this object holds" reads better
+  than three. See *Naming* below.
+- **`defaults` means "defaults for this class's payload."** Attribute defaults on
+  a Model, option defaults on a View, Collection or Controller. Backbone fixes
+  `defaults` to attributes; tying one word to one class's idea of a payload is
+  more rigid than useful.
+- **`Observable`, by inheritance, not `Backbone.Events` as a mixin.** Same API,
+  reachable the ES6 way — `class Player extends Observable`.
+- **`Events` is a different thing here.** In Backbone it is the observer mixin; in
+  APP it is an application-wide pub/sub bus that also crosses browser tabs. The
+  observer role belongs to `Observable`.
+- **`Controller extends Router`.** The thing that owns your routes is the same
+  thing that owns your app logic, rather than two objects you wire together.
+- **There is a facade.** `new APP()` composes `events` / `state` / `views` /
+  `session` / `router`. Backbone has no equivalent; you assembled it yourself.
+- **Batteries are included, not plugged in.** Offline caching, sessions,
+  templating, view states, viewport visibility and input mixins ship in the box.
+  Backbone left all of these to plugins. They are opt-in per instance and, as of
+  the lazy-machinery pass, cost nothing when unused.
+- **No jQuery, so no `this.$el` or `this.$()`.** `this.el` is a real DOM element;
+  use `querySelector` on it.
+- **`sync` returns a Promise**, not a jqXHR — with `AbortController`
+  cancel/timeout and opt-in retry. There is no `emulateHTTP` / `emulateJSON`.
+
+### Conveniences Backbone has and APP does not (yet)
+
+`Model`: `escape`, `unset`, `clone`, `isValid`, `keys` / `values` / `pick` / `omit`.
+`Collection`: `push` / `pop` / `shift` / `unshift`, `first` / `last` / `initial` /
+`rest`, `create`, `clone`, `modelId`, `indexBy`, `without`, `shuffle`.
+`View`: `delegate` / `undelegate` (the single-binding variants).
+
+None are hard; they simply have not been needed yet. Ask if one is blocking you.
 
 ## Credits
 

@@ -9,9 +9,16 @@ always listed under *Breaking* below.
 
 ## [Unreleased]
 
-Corrective and tooling work following an independent review of the 0.7.0 series.
-No architectural changes — the roadmap §2 items (View split, going native on the
-`_` shim, true ES modules, naming, plugin extraction) are all still ahead.
+Corrective work following an independent review of the 0.7.0 series, then the
+distribution and convention passes.
+
+Roadmap §2 was revised rather than executed as originally written: tree-shaking
+was dropped as a goal (the whole optional surface is ~3.3 KB gzipped, not worth
+the architectural constraints), the View split was replaced by making its
+machinery lazy (same benefit, no API change), and the Backbone-conformance
+renames were dropped in favour of the library's own `data` / `defaults`
+conventions. Real ES modules — for an explicit dependency graph, still shipping a
+single bundle — remain ahead.
 
 ### Breaking
 
@@ -29,6 +36,11 @@ No architectural changes — the roadmap §2 items (View split, going native on 
 
 ### Added
 
+- **`Model#data`** — the payload under the library's `data` convention
+  (`Collection#data`, `View#data`). `attributes` remains a permanent alias.
+- **A "Relationship to Backbone.js" section** in the README: what carries over,
+  what is deliberately different and why, and which Backbone conveniences are not
+  implemented yet.
 - **TypeScript declarations.** `types/app.d.ts` is generated from the JSDoc and
   shipped; `npm run types` regenerates it and type-checks a sample consumer that
   imports by package name, so the whole resolution chain is covered.
@@ -51,8 +63,26 @@ No architectural changes — the roadmap §2 items (View split, going native on 
   a script and cannot parse the source.
 - `npm run lint`, `npm run types`, `npm run test:browser`; CI jobs for each.
 
+### Changed
+
+- **View machinery is built on demand.** The IntersectionObserver, the resize
+  registration, the `Template` and the state `Model` are no longer created up
+  front. Measured on 500 list rows: construction 23.4 ms → 10.7 ms, 500
+  observers → 0, 500 window resize listeners → 1 (shared), 500 unused Templates
+  → 0. No API change.
+- **`_` helper internals are native** where measured faster (`extend` via
+  `Object.assign`, 1.34×; `isEmpty` inlined, 1.62×). The method set and
+  signatures are unchanged. `each` was deliberately left alone — the "obvious"
+  rewrite measured 4.3× slower.
+- **`View#options.data` is now `options.hasData`.** The derived flag no longer
+  overwrites the option the caller passes a model or collection in.
+- **`"fetch"` is emitted by `fetch()`, synchronously**, instead of by a 200 ms
+  `setTimeout` inside `parse()`. `save()` no longer emits it.
+
 ### Fixed
 
+- `_.bindAll` dropped every argument passed to a bound method
+  (`greet("Ada","!")` → `"hi undefinedundefined"`).
 - `Collection#set()` deduplicates ids **within a single call** — `add([{id:1},{id:1}])`
   produced two members.
 - `Model#isOnline()` / `Collection#isOnline()` threw `ReferenceError` when no app
