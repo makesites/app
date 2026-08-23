@@ -16,6 +16,7 @@ import globals from "globals";
 // everything the concatenated bundle puts in one scope
 const bundleScope = {
 	// classes, in build/index.js manifest order
+	Observable: "readonly",
 	Base: "readonly",
 	Router: "readonly",
 	History: "readonly",

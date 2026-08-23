@@ -18,12 +18,12 @@ const root = join( dirname( fileURLToPath( import.meta.url ) ), ".." );
 const pkg = JSON.parse( readFileSync( join( root, "package.json" ), "utf8" ) );
 
 // Concatenation manifest (dependency order):
-// - base first (everything extends it)
+// - observable first (Base extends it), then base (everything else extends that)
 // - router before controller (Controller extends Router)
 // - events before app (APP instantiates Events)
 // - utils/app last
 const manifest = [
-	"base", "router", "model", "view", "controller", "collection", "layout",
+	"observable", "base", "router", "model", "view", "controller", "collection", "layout",
 	"session", "template", "cache", "sync", "input", "events", "utils", "app"
 ];
 

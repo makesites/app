@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.7.0 (Sun, 23 Aug 2026 14:43:46 GMT)
+ * Version: 0.7.0 (Sun, 23 Aug 2026 14:45:31 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -12,25 +12,13 @@
  */
 export type EventCallback = (...args: any[]) => void;
 /**
- * A listener invoked by {@link Base#trigger}. Arguments are whatever the
+ * A listener invoked by {@link Observable#trigger}. Arguments are whatever the
  * emitter passed after the event name.
  * @typedef {(...args: any[]) => void} EventCallback
  */
-declare class Base {
-    _optionStates: Object;
+declare class Observable {
     _events: {} | undefined;
     _listeningTo: any;
-    _onResize: any;
-    _resizeTimer: any;
-    _delegateEvents: any;
-    el: any;
-    /**
-     * @param {Object} [options]
-     * @param {Object} [options.states] - state -> handler-name map, merged with the class's own
-     */
-    constructor(options?: {
-        states?: Object;
-    });
     bind(name: any, cb: any, context: any): this;
     /**
      * Subscribe to an event. Supports space-separated names ("add remove").
@@ -67,22 +55,46 @@ declare class Base {
     _triggerHandlers(handlers: any, args: any): void;
     /**
      * Listen to another object's event, tracked so it can be torn down via
-     * {@link Base#stopListening} (e.g. when a view is removed).
-     * @param {Base} obj - the object to observe
+     * {@link Observable#stopListening} (e.g. when a view is removed).
+     * @param {Observable} obj - the object to observe
      * @param {string} name - event name(s)
      * @param {EventCallback} callback - runs with THIS object as context
      * @returns {this}
      */
-    listenTo(obj: Base, name: string, callback: EventCallback): this;
+    listenTo(obj: Observable, name: string, callback: EventCallback): this;
+    /**
+     * Listen to another object's event exactly once, then drop the binding.
+     * Tracked like {@link Observable#listenTo}, so {@link Observable#stopListening}
+     * also clears it if the event never fires.
+     * @param {Observable} obj - the object to observe
+     * @param {string} name - event name(s)
+     * @param {EventCallback} callback - runs with THIS object as context
+     * @returns {this}
+     */
+    listenToOnce(obj: Observable, name: string, callback: EventCallback): this;
     /**
      * Stop listening. With no arguments drops every listenTo binding; otherwise
      * filters by object, event name and/or callback.
-     * @param {Base} [obj]
+     * @param {Observable} [obj]
      * @param {string} [name]
      * @param {EventCallback} [callback]
      * @returns {this}
      */
-    stopListening(obj?: Base, name?: string, callback?: EventCallback): this;
+    stopListening(obj?: Observable, name?: string, callback?: EventCallback): this;
+}
+declare class Base extends Observable {
+    _optionStates: Object;
+    _onResize: any;
+    _resizeTimer: any;
+    _delegateEvents: any;
+    el: any;
+    /**
+     * @param {Object} [options]
+     * @param {Object} [options.states] - state -> handler-name map, merged with the class's own
+     */
+    constructor(options?: {
+        states?: Object;
+    });
     remove(): this;
     unbind(name: any, cb: any): this;
     delegateEvents(events: any): this;
@@ -716,7 +728,7 @@ declare class Events extends Base {
      * @returns {this}
      */
     trigger(name: string, ...args: any[]): this;
-    _emit(name: any, args: any): Base;
+    _emit(name: any, args: any): Observable;
     close(): void;
 }
 declare class Views {
@@ -784,6 +796,7 @@ declare class APP {
 }
 declare namespace APP {
     var ready: (callback: any) => any;
+    export { Observable };
     export { Model };
     export { View };
     export { Controller };
@@ -802,5 +815,5 @@ declare namespace APP {
     export var Layouts: {};
     export var Templates: {};
 }
-export { APP, Model, View, Controller, Router, history, Events, Collection, Layout, Template, Session, sync };
+export { APP, Observable, Model, View, Controller, Router, history, Events, Collection, Layout, Template, Session, sync };
 export { TouchMixin, MouseMixin, ScrollMixin, MotionMixin, GamepadMixin, KeysMixin };

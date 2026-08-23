@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.8.0 (Sun, 23 Aug 2026 14:43:46 GMT)
+ * Version: 0.8.0 (Sun, 23 Aug 2026 14:45:31 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -14,31 +14,31 @@
 //import { APP } from "./app.js";
 
 
+/*
+ * Observable
+ * The event system, on its own: on / off / once / trigger plus the
+ * inversion-of-control listenTo / listenToOnce / stopListening.
+ *
+ * Extracted from Base so that *any* object can be made observable without
+ * dragging in element handling, delegated DOM events and the state machine —
+ * the role Backbone.Events fills as a mixin. `Base` extends it, so every
+ * Model / Collection / View / Router keeps the exact same API.
+ *
+ *   class Player extends Observable {
+ *     play(){ this.trigger("play", this.track); }
+ *   }
+ *
+ * Copyright © Makesites.org
+ */
 
 /**
- * A listener invoked by {@link Base#trigger}. Arguments are whatever the
+ * A listener invoked by {@link Observable#trigger}. Arguments are whatever the
  * emitter passed after the event name.
  * @typedef {(...args: any[]) => void} EventCallback
  */
 
-class Base {
+class Observable {
 
-	/**
-	 * @param {Object} [options]
-	 * @param {Object} [options.states] - state -> handler-name map, merged with the class's own
-	 */
-	constructor( options ){
-		// fallback(s)
-		options = options || {};
-		// states passed via options are merged with the class's own states at
-		// init time (we never assign `this.states`, so subclass getters work)
-		this._optionStates = options.states || {};
-
-		this.initStates();
-
-	}
-
-	// Events
 	// A minimal pub/sub registry. Unlike the previous EventTarget approach this
 	// passes the trigger arguments straight through to the callback and invokes
 	// it with the right `this` (the listening object, or an explicit context).
@@ -149,8 +149,8 @@ class Base {
 	// be torn down in one call - crucial for avoiding leaks when views are removed.
 	/**
 	 * Listen to another object's event, tracked so it can be torn down via
-	 * {@link Base#stopListening} (e.g. when a view is removed).
-	 * @param {Base} obj - the object to observe
+	 * {@link Observable#stopListening} (e.g. when a view is removed).
+	 * @param {Observable} obj - the object to observe
 	 * @param {string} name - event name(s)
 	 * @param {EventCallback} callback - runs with THIS object as context
 	 * @returns {this}
@@ -164,9 +164,29 @@ class Base {
 	}
 
 	/**
+	 * Listen to another object's event exactly once, then drop the binding.
+	 * Tracked like {@link Observable#listenTo}, so {@link Observable#stopListening}
+	 * also clears it if the event never fires.
+	 * @param {Observable} obj - the object to observe
+	 * @param {string} name - event name(s)
+	 * @param {EventCallback} callback - runs with THIS object as context
+	 * @returns {this}
+	 */
+	listenToOnce( obj, name, callback ){
+		if( !obj ) return this;
+		var self = this;
+		var once = function(){
+			self.stopListening( obj, name, once );
+			return callback.apply( this, arguments );
+		};
+		once._callback = callback;
+		return this.listenTo( obj, name, once );
+	}
+
+	/**
 	 * Stop listening. With no arguments drops every listenTo binding; otherwise
 	 * filters by object, event name and/or callback.
-	 * @param {Base} [obj]
+	 * @param {Observable} [obj]
 	 * @param {string} [name]
 	 * @param {EventCallback} [callback]
 	 * @returns {this}
@@ -187,6 +207,29 @@ class Base {
 		this._listeningTo = remaining;
 		return this;
 	}
+
+}
+
+
+class Base extends Observable {
+
+	/**
+	 * @param {Object} [options]
+	 * @param {Object} [options.states] - state -> handler-name map, merged with the class's own
+	 */
+	constructor( options ){
+		super();
+		// fallback(s)
+		options = options || {};
+		// states passed via options are merged with the class's own states at
+		// init time (we never assign `this.states`, so subclass getters work)
+		this._optionStates = options.states || {};
+
+		this.initStates();
+
+	}
+
+	// Events are inherited from Observable (on/off/once/trigger/listenTo/...)
 
 	remove() {
 		// stop resize monitoring. This has to be the *bound* handler that was
@@ -3570,7 +3613,7 @@ class Events extends Base {
 
 	// deliver to local listeners via the Base registry (without re-broadcasting)
 	_emit( name, args ){
-		return Base.prototype.trigger.apply( this, [name].concat( args ) );
+		return Observable.prototype.trigger.apply( this, [name].concat( args ) );
 	}
 
 	// tear down the cross-tab channel and drop all listeners
@@ -4026,6 +4069,7 @@ APP.ready = function( callback ){
 
 
 // Base Classes
+APP.Observable = Observable;
 APP.Model = Model;
 APP.View = View;
 APP.Controller = Controller;
@@ -4056,7 +4100,7 @@ var _ = new Utils();
 // expose on the global (guarded so the bundle also imports under Node/SSR)
 if ( typeof window !== "undefined" ) window.APP = APP;
 
-export { APP, Model, View, Controller, Router, history, Events, Collection, Layout, Template, Session, sync };
+export { APP, Observable, Model, View, Controller, Router, history, Events, Collection, Layout, Template, Session, sync };
 export { TouchMixin, MouseMixin, ScrollMixin, MotionMixin, GamepadMixin, KeysMixin };
 
 //# sourceMappingURL=app.js.map
