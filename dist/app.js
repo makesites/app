@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.8.0 (Sun, 23 Aug 2026 14:35:52 GMT)
+ * Version: 0.8.0 (Sun, 23 Aug 2026 14:43:46 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -15,8 +15,18 @@
 
 
 
+/**
+ * A listener invoked by {@link Base#trigger}. Arguments are whatever the
+ * emitter passed after the event name.
+ * @typedef {(...args: any[]) => void} EventCallback
+ */
+
 class Base {
 
+	/**
+	 * @param {Object} [options]
+	 * @param {Object} [options.states] - state -> handler-name map, merged with the class's own
+	 */
 	constructor( options ){
 		// fallback(s)
 		options = options || {};
@@ -41,7 +51,7 @@ class Base {
 	/**
 	 * Subscribe to an event. Supports space-separated names ("add remove").
 	 * @param {string} name - event name(s)
-	 * @param {Function} callback
+	 * @param {EventCallback} callback
 	 * @param {Object} [context] - `this` inside the callback (defaults to this object)
 	 * @returns {this}
 	 */
@@ -57,7 +67,13 @@ class Base {
 		return this;
 	}
 
-	// subscribe to an event, but only fire the callback once
+	/**
+	 * Subscribe to an event, firing the callback at most once.
+	 * @param {string} name - event name(s)
+	 * @param {EventCallback} callback
+	 * @param {Object} [context]
+	 * @returns {this}
+	 */
 	once( name, callback, context ){
 		var self = this;
 		var ran = false;
@@ -71,7 +87,14 @@ class Base {
 		return this.on( name, wrap, context );
 	}
 
-	// remove callbacks. With no args removes all; by name / callback / context.
+	/**
+	 * Remove callbacks. With no arguments removes all; otherwise filters by
+	 * event name, callback and/or context.
+	 * @param {string} [name]
+	 * @param {EventCallback} [callback]
+	 * @param {Object} [context]
+	 * @returns {this}
+	 */
 	off( name, callback, context ){
 		if( !this._events ) return this;
 		if( !name && !callback && !context ){ this._events = {}; return this; }
@@ -99,9 +122,8 @@ class Base {
 	 * @param {...*} args - forwarded to each listener
 	 * @returns {this}
 	 */
-	trigger( name ){
+	trigger( name, ...args ){
 		if( !this._events ) return this;
-		var args = Array.prototype.slice.call( arguments, 1 );
 		// support triggering several space-separated events at once
 		var names = String(name).split(/\s+/);
 		for( var k = 0; k < names.length; k++ ){
@@ -130,7 +152,7 @@ class Base {
 	 * {@link Base#stopListening} (e.g. when a view is removed).
 	 * @param {Base} obj - the object to observe
 	 * @param {string} name - event name(s)
-	 * @param {Function} callback - runs with THIS object as context
+	 * @param {EventCallback} callback - runs with THIS object as context
 	 * @returns {this}
 	 */
 	listenTo( obj, name, callback ){
@@ -141,8 +163,14 @@ class Base {
 		return this;
 	}
 
-	// Stop listening. With no args, drops every listenTo binding; otherwise
-	// filters by object / event name / callback.
+	/**
+	 * Stop listening. With no arguments drops every listenTo binding; otherwise
+	 * filters by object, event name and/or callback.
+	 * @param {Base} [obj]
+	 * @param {string} [name]
+	 * @param {EventCallback} [callback]
+	 * @returns {this}
+	 */
 	stopListening( obj, name, callback ){
 		var listeningTo = this._listeningTo;
 		if( !listeningTo ) return this;
@@ -308,6 +336,10 @@ const pathStripper  = /#.*$/;
 
 class Router extends Base {
 
+	/**
+	 * @param {Object} [options]
+	 * @param {Object} [options.routes] - route -> handler-name map
+	 */
 	constructor( options ){
 		// fallback(s)
 		options = options || {};
@@ -939,6 +971,9 @@ class Model extends Base {
 
 class View extends Base {
 
+	/**
+	 * @param {Object} [options] - { el, model, collection, data, html, url, template, ... }
+	 */
 	constructor( options ){
 		// fallback(s)
 		options = options || {};
@@ -1389,6 +1424,9 @@ class View extends Base {
 
 class Controller extends Router {
 
+	/**
+	 * @param {Object} [options] - { api, autostart, pushState, location, p404, session, app }
+	 */
 	constructor( options ) {
 		// fallback(s) - must run before super()
 		options = options || {};
@@ -1642,6 +1680,10 @@ class Controller extends Router {
 
 class Collection extends Base {
 
+	/**
+	 * @param {Array} [models] - models (or plain attribute objects) to populate with
+	 * @param {Object} [options]
+	 */
 	constructor( models, options={} ) {
 		super( options );
 
@@ -1717,6 +1759,7 @@ class Collection extends Base {
 	/**
 	 * Add one or many models/objects (deduped by id via set()). Fires "add".
 	 * @param {(Object|Model|Array)} models
+	 * @param {Object} [options]
 	 * @returns {(Model|Array)}
 	 */
 	add( models, options ){
@@ -1728,6 +1771,7 @@ class Collection extends Base {
 	 * remove any not present in `models`. Options { add, remove, merge, sort,
 	 * silent } (all default true except silent). Fires add / remove / sort / update.
 	 * @param {(Object|Model|Array)} models
+	 * @param {Object} [options] - { add, remove, merge, sort, silent }
 	 * @returns {(Model|Array)}
 	 */
 	set( models, options ){
@@ -1817,6 +1861,7 @@ class Collection extends Base {
 	 * attribute-name string). Fires "sort".
 	 * @returns {this}
 	 */
+	/** @param {Object} [options] */
 	sort( options ){
 		var comparator = this.comparator || this._comparator;
 		if( !comparator ) return this;
@@ -1842,6 +1887,7 @@ class Collection extends Base {
 	/**
 	 * Remove a model - accepts a model, an id, or a cid. Fires "remove".
 	 * @param {(Model|string|number|Array)} target
+	 * @param {Object} [options]
 	 * @returns {?Model}
 	 */
 	remove( target, options ){
@@ -1862,6 +1908,7 @@ class Collection extends Base {
 	/**
 	 * Replace all models at once, firing a single "reset".
 	 * @param {Array} [models]
+	 * @param {Object} [options]
 	 * @returns {this}
 	 */
 	reset( models, options ){
@@ -2222,6 +2269,9 @@ class Collection extends Base {
 
 class Layout extends View {
 
+	/**
+	 * @param {Object} [options] - { el (defaults to body), url, autosync, sync_events }
+	 */
 	constructor( options ) {
 		// fallback(s)
 		options = options || {};
@@ -2454,6 +2504,10 @@ class Layout extends View {
 
  class Session extends Model {
 
+	/**
+	 * @param {Object} [model] - initial attributes
+	 * @param {Object} [options] - { host, url, local, remote, broadcast, persist }
+	 */
 	constructor( model, options ){
 		// fallback(s)
 		options = options || {};
@@ -2733,6 +2787,10 @@ const RESERVED_WORDS = new Set([
 
 class Template extends Model {
 
+	/**
+	 * @param {string} [html] - inline markup to compile
+	 * @param {Object} [options] - { url, type, compiler }
+	 */
 	constructor( html, options ) {
 		// fallback(s)
 		options = options || {};
@@ -2963,8 +3021,8 @@ function configureSync( config ){
  * @property {AbortSignal} [signal] - wire the request to your own controller
  * @property {number} [retry] - retry count for transient read failures (default 0)
  * @property {number} [retryDelay] - base backoff in ms (default 300)
- * @property {function(*, string, Response=):void} [success]
- * @property {function(Error, string, Response=):void} [error]
+ * @property {(data: *, status: string, response: Response) => void} [success]
+ * @property {(error: Error, status: string, response: Response) => void} [error]
  */
 
 /**
@@ -3496,8 +3554,7 @@ class Events extends Base {
 	 * @param {...*} args
 	 * @returns {this}
 	 */
-	trigger( name ){
-		var args = Array.prototype.slice.call( arguments, 1 );
+	trigger( name, ...args ){
 		// local, same-tab delivery
 		this._emit( name, args );
 		// cross-tab delivery (structured-clone; stays local-only if not cloneable)

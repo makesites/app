@@ -40,6 +40,22 @@ jobs:
       - run: npm ci
       - run: npm run lint
 
+  types:
+    name: types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # regenerates types/app.d.ts and type-checks the sample consumer against it
+      - run: npm run types
+      # the committed declarations must match what the build produces
+      - run: git diff --exit-code types/
+
   coverage:
     name: coverage
     runs-on: ubuntu-latest

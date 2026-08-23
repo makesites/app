@@ -1,6 +1,6 @@
 {
 	"name": "@makesites/app",
-	"version": "0.8.0",
+	"version": "0.7.0",
 	"description": "A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.",
 	"author": "makesites",
 	"homepage": "http://github.com/makesites/app",
@@ -19,13 +19,17 @@
 	"main": "./dist/app.js",
 	"module": "./dist/app.js",
 	"exports": {
-		".": "./dist/app.js",
+		".": {
+			"types": "./types/app.d.ts",
+			"default": "./dist/app.js"
+		},
 		"./min": "./dist/app.min.js",
 		"./package.json": "./package.json"
 	},
 	"files": [
 		"dist",
 		"lib",
+		"types",
 		"!lib/main.js"
 	],
 	"keywords": [
@@ -52,12 +56,15 @@
 		"globals": "^17.11.0",
 		"hbs": ">4.1.2",
 		"jsdom": "^29.1.1",
-		"terser": ">=5.14.2"
+		"terser": ">=5.14.2",
+		"typescript": "^7.0.2"
 	},
 	"scripts": {
-		"build": "node build/index.js",
+		"build": "node build/index.js && npm run types",
+		"types": "tsc -p tsconfig.types.json && tsc -p tsconfig.json",
 		"test": "node --test",
 		"coverage": "node --test --experimental-test-coverage",
 		"lint": "eslint ."
-	}
+	},
+	"types": "./types/app.d.ts"
 }

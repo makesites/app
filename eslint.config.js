@@ -71,6 +71,7 @@ export default [
 	{
 		ignores: [
 			"dist/**",
+			"types/**",
 			"node_modules/**",
 			// the build template: handlebars placeholders, not JavaScript
 			"lib/main.js"

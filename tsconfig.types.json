@@ -1,0 +1,18 @@
+{
+	"//": "Emits types/app.d.ts from the JSDoc on the built bundle. Run via `npm run types` (also called by `npm run build`).",
+	"compilerOptions": {
+		"allowJs": true,
+		"checkJs": false,
+		"declaration": true,
+		"emitDeclarationOnly": true,
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"target": "es2022",
+		"skipLibCheck": true,
+		"outDir": "types",
+		"rootDir": "./dist"
+	},
+	"include": [
+		"dist/app.js"
+	]
+}

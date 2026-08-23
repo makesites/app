@@ -1,0 +1,15 @@
+{
+	"//": "Type-checks the sample consumer in typecheck/ against the generated declarations, resolved through the package's own exports map. Run via `npm run types`.",
+	"compilerOptions": {
+		"noEmit": true,
+		"strict": true,
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"target": "es2022",
+		"skipLibCheck": true,
+		"types": []
+	},
+	"include": [
+		"typecheck/**/*.ts"
+	]
+}
