@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.7.0 (Sun, 23 Aug 2026 02:28:28 GMT)
+ * Version: 0.7.0 (Sun, 23 Aug 2026 13:00:51 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -1606,10 +1606,13 @@ class Collection extends Base {
 		if( models ) this.reset( models, { silent: true } );
 	}
 
-	// (re)initialise the internal store: the data array + the id/cid index
+	// (re)initialise the internal store: the data array + the id/cid index.
+	// The index is a null-prototype object so that ids colliding with
+	// Object.prototype members ("constructor", "toString", ...) can't resolve to
+	// an inherited value instead of a model.
 	_reset(){
 		this.data = [];
-		this._byId = {};
+		this._byId = Object.create( null );
 	}
 
 	// initialization hook (override freely)
@@ -1670,6 +1673,10 @@ class Collection extends Base {
 				keep[ existing.cid ] = true;
 			} else if( options.add ){
 				var model = this._prepareModel( item, options );
+				// index the new model straight away so a duplicate later in the
+				// SAME batch matches it (the full _addReference runs after the
+				// removal pass, which would otherwise be too late to dedupe)
+				this._index( model );
 				toAdd.push( model );
 				keep[ model.cid ] = true;
 			}
@@ -1790,12 +1797,18 @@ class Collection extends Base {
 		return this;
 	}
 
-	// maintain the id/cid index + a back-reference, and forward the model's events
-	_addReference( model ){
+	// index a model by cid and by id (both point at the same model)
+	_index( model ){
 		if( !model ) return;
 		if( model.cid ) this._byId[ model.cid ] = model;
 		var id = model.get ? model.get( model.idAttribute || "id" ) : null;
 		if( id != null ) this._byId[ id ] = model;
+	}
+
+	// maintain the id/cid index + a back-reference, and forward the model's events
+	_addReference( model ){
+		if( !model ) return;
+		this._index( model );
 		if( !model.collection ) model.collection = this;
 		if( model.on ) model.on( "all", this._onModelEvent, this );
 	}
@@ -1863,10 +1876,17 @@ class Collection extends Base {
 	 */
 	get( key ) {
 		if( key == null ) return null;
-		// integer -> array index (preserves existing behaviour)
-		if( Number.isInteger( key ) ) return this.data[ key ];
-		// id or cid -> O(1) via the index
+		// a model instance -> resolve it through the index
+		if( key.cid ) return this._byId[ key.cid ] || null;
+		// id or cid -> O(1) via the index. This MUST be tried before the integer
+		// branch below: ids are numeric far more often than not, and the old
+		// order made `get(9)` return the model at index 9 rather than id 9 - so
+		// the index was unreachable for the common `{ id: 1 }` convention.
 		if( this._byId[ key ] != null ) return this._byId[ key ];
+		// integer -> array index (legacy fallback; `at()` is the explicit form).
+		// Normalised to null when out of range, so get() honours its ?Model
+		// contract instead of mixing null and undefined.
+		if( Number.isInteger( key ) ) return this.data[ key ] || null;
 		// name -> linear scan
 		for ( var i = 0; i < this.data.length; i++ ){
 			if( key === this.data[i].get('name') ) return this.data[i];
