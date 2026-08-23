@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.7.0 (Sun, 23 Aug 2026 13:12:32 GMT)
+ * Version: 0.7.0 (Sun, 23 Aug 2026 13:17:10 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -161,11 +161,19 @@ class Base {
 	}
 
 	remove() {
-		// stop resize monitoring
-		window.removeEventListener( "resize", this._resize );
-
-		// don't forget to call the original remove() function
-		//Backbone.View.prototype.remove.call(this);
+		// stop resize monitoring. This has to be the *bound* handler that was
+		// registered (`_onResize`): removeEventListener matches by identity, so
+		// passing the prototype method `this._resize` removed nothing.
+		if( typeof window !== "undefined" && this._onResize ){
+			window.removeEventListener( "resize", this._onResize );
+		}
+		this._onResize = null;
+		// drop a pending debounced resize so it can't fire after teardown
+		if( this._resizeTimer ){
+			clearTimeout( this._resizeTimer );
+			this._resizeTimer = null;
+		}
+		return this;
 	}
 
 	// Remove DOM listeners this object registered on `this.el`.
@@ -1022,8 +1030,12 @@ class View extends Base {
 		} else {
 			this.trigger("loaded");
 		}
-		// #36 - Adding resize event
-		window.addEventListener("resize", this._resize.bind(this) );
+		// #36 - Adding resize event. Keep the bound handler: removeEventListener
+		// matches by identity, so the teardown in Base#remove() could never
+		// remove an inline .bind(this) and every removed view leaked a listener
+		// (and, through it, the whole view).
+		this._onResize = this._resize.bind(this);
+		if( typeof window !== "undefined" ) window.addEventListener("resize", this._onResize );
 		// monitor viewport visibility natively (replaces the jQuery scroll math)
 		this._setupVisibilityObserver();
 
@@ -1047,7 +1059,8 @@ class View extends Base {
 			autoRender: true,
 			inRender: false,
 			silentRender: false,
-			renderTarget: false
+			renderTarget: false,
+			resizeDelay: 1000
 		};
 	}
 
@@ -1265,28 +1278,24 @@ class View extends Base {
 	// * renderTarget inside the element
 	// * renderTarget outside the element (bad practice?)
 	_findContainer(){
-		// by default
-		var container = this.el;
-
-		if ( !this.options.renderTarget ){
-			// do nothing more
-
-		} else if( typeof this.options.renderTarget == "string" ){
-
-			container = this.el.querySelectorAll(this.options.renderTarget)[0];
-			if( !container.length ){
-				// assume this always exists...
-				container = document.querySelector(this.options.renderTarget);
-			}
-
-		} else if( typeof this.options.renderTarget == "object" ){
-
-			container = this.options.renderTarget;
-
-		}
-
-		return container;
-
+		var target = this.options.renderTarget;
+		// by default the view renders into its own element
+		if( !target ) return this.el;
+		// an element was handed in directly
+		if( typeof target !== "string" ) return target;
+		// a selector: prefer a match inside the view's element, then fall back to
+		// the document.
+		//
+		// (The previous version tested `container.length` on the *Element*
+		// returned by querySelectorAll(...)[0]. An Element has no `length`, so an
+		// in-element match was always discarded in favour of the document-wide
+		// lookup - the documented "renderTarget inside the element" case never
+		// worked - and a miss threw `Cannot read properties of undefined`.)
+		var container = this.el ? this.el.querySelector( target ) : null;
+		if( !container && typeof document !== "undefined" ) container = document.querySelector( target );
+		// nothing matched anywhere: render into the view's own element rather
+		// than throwing out of render()
+		return container || this.el;
 	}
 
 	// checks if an element exists in the DOM
@@ -1314,16 +1323,19 @@ class View extends Base {
 		// extend method with custom logic
 	}
 
-	// resize event trigger (with debouncer)
+	// resize event trigger (debounced)
+	// The timer has to live on the instance: it used to be a local `var timeout`,
+	// so `clearTimeout( timeout )` always cleared `undefined` and every single
+	// resize event scheduled its own callback - no debouncing at all.
 	_resize () {
-		var self = this ,
-		args = arguments,
-		timeout,
-		delay = 1000; // default delay set to a second
-		clearTimeout( timeout );
-		timeout = setTimeout( function () {
-			self.resize.apply( self , Array.prototype.slice.call( args ) );
-		} , delay);
+		var self = this;
+		var args = Array.prototype.slice.call( arguments );
+		var delay = ( this.options && this.options.resizeDelay ) || 1000;
+		clearTimeout( this._resizeTimer );
+		this._resizeTimer = setTimeout( function () {
+			self._resizeTimer = null;
+			self.resize.apply( self, args );
+		}, delay );
 	}
 
 	//
@@ -1364,6 +1376,8 @@ class View extends Base {
 	remove(){
 		// remove all listenTo bindings (data, template, ...) to avoid leaks
 		this.stopListening();
+		// drop the delegated DOM listeners too, so a re-used element is clean
+		this.undelegateEvents();
 		if( this.observer ) this.observer.disconnect();
 		if( this.el && this.el.parentNode ) this.el.parentNode.removeChild( this.el );
 		// let Base remove the resize listener etc.
