@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.8.0 (Sun, 23 Aug 2026 16:40:59 GMT)
+ * Version: 0.8.0 (Sun, 23 Aug 2026 16:46:20 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -923,6 +923,8 @@ class Model extends Base {
 			self.set( data, options );
 			if( success ) success.call( options.context, self, resp, options );
 			self.trigger("sync", self, resp, options);
+			// the response is applied - emit "fetch" now, synchronously
+			self.trigger("fetch", self, resp, options);
 		};
 		return this.sync("read", this, options);
 	}
@@ -996,9 +998,14 @@ class Model extends Base {
 		return _.isFunction(object[prop]) ? object[prop]() : object[prop];
 	}
 
+	// Transform a server response before it is applied.
+	//
+	// This used to also `setTimeout(() => trigger("fetch"), 200)` - a side effect,
+	// on a timer, inside a pure transform. It fired 200ms after the data had
+	// already been applied (so listeners raced it), and it fired on save() too,
+	// which is not a fetch. "fetch" is now emitted by fetch() itself, once the
+	// response has been set.
 	parse( data ){
-		var self = this;
-		setTimeout(function(){ self.trigger("fetch"); }, 200); // better way to trigger this after parse?
 		// cache response
 		if( this.options.cache ){
 			this.cache( data );
@@ -2135,6 +2142,8 @@ class Collection extends Base {
 			self.options._synced = true;
 			if( success ) success.call( options.context, self, resp, options );
 			self.trigger("sync", self, resp, options);
+			// the response is applied - emit "fetch" now, synchronously
+			self.trigger("fetch", self, resp, options);
 		};
 		return this.sync("read", this, options);
 	}
@@ -2375,9 +2384,14 @@ class Collection extends Base {
 		});
 	}
 
+	// Transform a server response before it is applied.
+	//
+	// This used to also `setTimeout(() => trigger("fetch"), 200)` - a side effect,
+	// on a timer, inside a pure transform. It fired 200ms after the data had
+	// already been applied (so listeners raced it), and it fired on save() too,
+	// which is not a fetch. "fetch" is now emitted by fetch() itself, once the
+	// response has been set.
 	parse( data ){
-		var self = this;
-		setTimeout(function(){ self.trigger("fetch"); }, 200); // better way to trigger this after parse?
 		// cache results
 		if( this.options.cache ){
 			this.cache( data );
