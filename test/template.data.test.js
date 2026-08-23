@@ -2,7 +2,7 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { mountDOM } from "./helpers/dom.js";
-import { Template, Collection, View, Model } from "../dist/app.js";
+import { Template, Collection, View } from "../dist/app.js";
 
 afterEach(() => { delete globalThis.fetch; });
 

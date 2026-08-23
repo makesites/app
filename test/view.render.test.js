@@ -22,7 +22,7 @@ test("renderTarget: a selector matching INSIDE the element wins", () => {
 });
 
 test("renderTarget: falls back to the document when nothing matches inside", () => {
-	const view = new View({ el: "#main", renderTarget: "#outside", html: "<b>out</b>" });
+	new View({ el: "#main", renderTarget: "#outside", html: "<b>out</b>" });
 	assert.equal(dom.document.getElementById("outside").innerHTML, "<b>out</b>");
 });
 
@@ -34,7 +34,7 @@ test("renderTarget: an unmatched selector renders into the element instead of th
 
 test("renderTarget: an element can be passed directly", () => {
 	const target = dom.document.getElementById("outside");
-	const view = new View({ el: "#main", renderTarget: target, html: "<b>direct</b>" });
+	new View({ el: "#main", renderTarget: target, html: "<b>direct</b>" });
 	assert.equal(target.innerHTML, "<b>direct</b>");
 });
 

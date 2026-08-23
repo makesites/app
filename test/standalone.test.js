@@ -34,7 +34,7 @@ test("autofetch is a no-op when no url resolves", () => {
 	const m = new Model({}, { autofetch: true });
 	assert.equal(called, 0);
 	assert.equal(m.url(), null);
-	const c = new Collection(null, { autofetch: true });
+	new Collection(null, { autofetch: true });
 	assert.equal(called, 0);
 });
 
@@ -42,9 +42,7 @@ test("autofetch still fires when urlRoot resolves, and absorbs a failed request"
 	let called = 0;
 	globalThis.fetch = () => { called++; return Promise.reject(new TypeError("network down")); };
 	class Thing extends Model { get urlRoot(){ return "/api/things"; } }
-	let errored = null;
-	const m = new Thing({ id: 1 }, { autofetch: true });
-	m.on("error", (model, err) => { errored = err; });
+	new Thing({ id: 1 }, { autofetch: true });
 	// let the rejected fetch settle - an unhandled rejection here would abort the run
 	await new Promise((r) => setTimeout(r, 10));
 	assert.equal(called, 1, "autofetch issued the request");

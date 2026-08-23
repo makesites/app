@@ -4,7 +4,7 @@
 // instead of assigning them. These cover the names that were still assigned in a
 // constructor and therefore still threw
 // "TypeError: Cannot set property X ... which has only a getter".
-import { test, beforeEach, afterEach } from "node:test";
+import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mountDOM } from "./helpers/dom.js";
 import { Model, Collection, Controller, View } from "../dist/app.js";

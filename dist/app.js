@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.7.0 (Sun, 23 Aug 2026 14:30:35 GMT)
+ * Version: 0.8.0 (Sun, 23 Aug 2026 14:35:52 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -298,10 +298,10 @@ class Base {
 const optionalParam = /\((.*?)\)/g;
 const namedParam    = /(\(\?)?:\w+/g;
 const splatParam    = /\*\w+/g;
-const escapeRegExp  = /[\-{}\[\]+?.,\\\^$|#\s]/g;
+const escapeRegExp  = /[-{}[\]+?.,\\^$|#\s]/g;
 
 // Cached regexes for stripping urls of hash and root.
-const routeStripper = /^[#\/]|\s+$/g;
+const routeStripper = /^[#/]|\s+$/g;
 const rootStripper  = /^\/+|\/+$/g;
 const pathStripper  = /#.*$/;
 
@@ -425,7 +425,7 @@ class History extends Base {
 
 	// Are we at the app root?
 	atRoot(){
-		var path = this.location.pathname.replace(/[^\/]$/, "$&/");
+		var path = this.location.pathname.replace(/[^/]$/, "$&/");
 		return path === this.root && !this.location.search;
 	}
 
@@ -1306,10 +1306,9 @@ class View extends Base {
 		// prerequisites
 		if( !el ) return false;
 		// variables
-		var exists = false;
 		var parent = document.querySelector( (this.options.parentEl || "body") );
 		// check parent element
-		exists = parent.contains( el );
+		var exists = parent.contains( el );
 		if( exists ) return true;
 		// el not in parent el
 		if( this.options.parentPrepend ){
@@ -2388,7 +2387,7 @@ class Layout extends View {
 
 	// broadcast all data updates in the views back to the layout
 	_syncData( model, collection, options ){
-		var value = false;
+		var value;
 		// fallback
 		var data = collection || model || false;
 		if( !data ) return;
@@ -2736,7 +2735,7 @@ class Template extends Model {
 
 	constructor( html, options ) {
 		// fallback(s)
-		options = options || (options={});
+		options = options || {};
 		html = html || "";
 		// pass options as Model *options* (not as model attributes) so this.options
 		// carries url/type/compiler. (Was `super(options)`, which mis-routed them
@@ -3601,11 +3600,10 @@ class Utils {
 
 	// Source: https://locutus.io/php/var/empty/
 	isEmpty( mixedVar ){
-		let undef;
 		let key;
 		let i;
 		let len;
-		const emptyValues = [undef, null, false, 0, '', '0'];
+		const emptyValues = [undefined, null, false, 0, '', '0'];
 		for (i = 0, len = emptyValues.length; i < len; i++) {
 			if (mixedVar === emptyValues[i]) {
 				return true;
@@ -3613,7 +3611,7 @@ class Utils {
 		}
 		if (typeof mixedVar === 'object') {
 			for (key in mixedVar) {
-				if (mixedVar.hasOwnProperty(key)) {
+				if (Object.prototype.hasOwnProperty.call(mixedVar, key)) {
 					return false;
 				}
 			}
