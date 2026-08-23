@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.8.0 (Sun, 23 Aug 2026 16:46:20 GMT)
+ * Version: 0.8.0 (Sun, 23 Aug 2026 17:06:28 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -172,7 +172,7 @@ declare class Model extends Base {
     changed: {};
     _previousAttributes: {};
     idAttribute: string;
-    options: any;
+    options: Object;
     cid: string;
     _changing: boolean | undefined;
     id: any;
@@ -210,9 +210,9 @@ declare class Model extends Base {
     }): this;
     _validate(attrs: any, options: any): boolean;
     hasChanged(attr: any): boolean;
-    changedAttributes(diff: any): any;
+    changedAttributes(diff: any): Object;
     previous(attr: any): any;
-    previousAttributes(): any;
+    previousAttributes(): Object;
     reset(): this;
     clear(options: any): this;
     cache(data: any): void | string | false | null;
@@ -236,8 +236,8 @@ declare class Model extends Base {
     isOnline(): any;
     getValue(object: any, prop: any): any;
     parse(data: any): any;
-    toJSON(options: any): any;
-    output(): any;
+    toJSON(options: any): Object;
+    output(): Object;
 }
 declare class View extends Base {
     model: any;
@@ -249,7 +249,7 @@ declare class View extends Base {
     _baseEvents: {
         "click a[rel='external']": string;
     };
-    options: any;
+    options: Object;
     cid: string;
     url: ((options: any) => any) | undefined;
     template: any;
@@ -326,7 +326,7 @@ declare class View extends Base {
 }
 declare class Controller extends Router {
     data: Model;
-    options: any;
+    options: Object;
     _baseRoutes: {
         "": string;
         "_=_": string;
@@ -368,7 +368,7 @@ declare class Controller extends Router {
 }
 declare class Collection extends Base {
     model: any;
-    options: any;
+    options: Object;
     _comparator: any;
     cid: string;
     data: any[] | undefined;
@@ -743,6 +743,116 @@ declare class Events extends Base {
     _emit(name: any, args: any): Observable;
     close(): void;
 }
+/**
+ * The framework's utility belt. A single shared instance is exported as `_` — the
+ * same one every framework class uses — so code extending Model / View /
+ * Collection has the same helpers available:
+ *
+ *   import { _ } from "@makesites/app";
+ *   _.extend( target, patch );
+ *   _.result( this, "url" );
+ *
+ * The name is a convention carried over from the Underscore.js days; the
+ * dependency is long gone and these are all hand-written or native.
+ */
+declare class Utils {
+    templateSettings: {
+        interpolate: RegExp;
+        variable: string;
+    };
+    _idCounter: any;
+    constructor();
+    /**
+     * Shallow-merge the own-enumerable properties of each source onto the first
+     * argument and return it. Both `_.extend({}, a, b)` and the mutating
+     * `_.extend(target, patch)` forms work; falsy sources are skipped.
+     * @param {Object} destination
+     * @param {...Object} sources
+     * @returns {Object} destination
+     */
+    extend(destination: Object, ...sources: Object[]): Object;
+    /**
+     * A random RFC-4122 v4 identifier.
+     * @returns {string}
+     */
+    uuid(): string;
+    isPhonegap(): any;
+    /**
+     * Permanently bind the named methods to `context`, so they can be passed as
+     * detached callbacks.
+     * @param {Object} context
+     * @param {...string} methods
+     * @returns {Object} context
+     */
+    bindAll(context: Object, ...methods: string[]): Object;
+    /**
+     * PHP-style emptiness: `undefined`, `null`, `false`, `0`, `""`, `"0"` and an
+     * object with no own keys are all empty.
+     * @param {*} mixedVar
+     * @returns {boolean}
+     */
+    isEmpty(mixedVar: any): boolean;
+    isString(v: any): v is string;
+    /**
+     * The element siblings of a node (excluding itself and text nodes).
+     * @param {Element} elem
+     * @returns {Element[]}
+     */
+    getSiblings(elem: Element): Element[];
+    /**
+     * A process-unique id, optionally prefixed — used for `cid`s.
+     * @param {string} [prefix]
+     * @returns {string}
+     */
+    uniqueId(prefix?: string): string;
+    isNull(obj: any): boolean;
+    isUndefined(obj: any): boolean;
+    /**
+     * Resolve a property that may be a value, a getter or a method: walks `path`
+     * on `obj`, invoking any function it finds with its parent as context.
+     * @param {Object} obj
+     * @param {(string|string[])} path
+     * @param {*} [fallback]
+     * @returns {*}
+     */
+    result(obj: Object, path: (string | string[]), fallback?: any): any;
+    /**
+     * Iterate an array's items or an object's own values.
+     * @param {(Array|Object)} obj
+     * @param {(value: *, key: (number|string), obj: *) => void} fn
+     * @param {Object} [context]
+     * @returns {(Array|Object)} obj
+     */
+    each(obj: (any[] | Object), fn: (value: any, key: (number | string), obj: any) => void, context?: Object): (any[] | Object);
+    bind(fn: any, context: any): any;
+    after(times: any, fn: any): () => any;
+    once(fn: any): () => any;
+    keys(obj: any): string[];
+    isFunction(obj: any): boolean;
+    /**
+     * Can `obj[name] = value` succeed? False when the name resolves to an accessor
+     * with no setter — assigning to one throws in strict mode.
+     * @param {Object} obj
+     * @param {string} name
+     * @returns {boolean}
+     */
+    assignable(obj: Object, name: string): boolean;
+    /**
+     * Value equality: strict for primitives, structural (via JSON) for plain
+     * objects and arrays. Circular structures compare unequal rather than throwing.
+     * @param {*} a
+     * @param {*} b
+     * @returns {boolean}
+     */
+    isEqual(a: any, b: any): boolean;
+    /**
+     * Copy properties onto this utils instance — the extension point for
+     * registering a template compiler, e.g. `_.mixin({ template: Handlebars.compile })`.
+     * @param {Object} obj
+     * @returns {this}
+     */
+    mixin(obj: Object): this;
+}
 declare class Views {
     _views: {};
     constructor();
@@ -809,6 +919,7 @@ declare class APP {
 declare namespace APP {
     var ready: (callback: any) => any;
     export { Observable };
+    export { Utils };
     export { Model };
     export { View };
     export { Controller };
@@ -826,6 +937,9 @@ declare namespace APP {
     export { _a as Views };
     export var Layouts: {};
     export var Templates: {};
+    export { _ };
 }
+declare var _: Utils;
 export { APP, Observable, Model, View, Controller, Router, history, Events, Collection, Layout, Template, Session, sync };
+export { _, Utils };
 export { TouchMixin, MouseMixin, ScrollMixin, MotionMixin, GamepadMixin, KeysMixin };

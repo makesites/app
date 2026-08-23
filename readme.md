@@ -29,6 +29,7 @@ for what carries over and what is deliberately different.
 * Remote templates via `DOMParser`; a **pluggable compiler** (CSP-safe via injection)
 * Composable input mixins: Touch, Mouse, Scroll, Motion, Gamepad, Keys
 * `Observable` - make any class an event emitter, no Model required
+* `_` - the same utility belt the framework classes use, exported for yours
 * **TypeScript declarations** generated from JSDoc, and source maps for both bundles
 
 
@@ -231,6 +232,32 @@ ui.listenToOnce(player, "ready", ui.enable);   // auto-unbinds after firing
 `Model`, `Collection`, `View`, `Router` and the `Events` bus all extend it, so
 `on` / `off` / `once` / `trigger` / `listenTo` / `listenToOnce` / `stopListening`
 behave identically everywhere.
+
+### Utilities (`_`)
+
+The helper belt the framework classes use themselves, exported so code extending
+them has the same tools. The name is a leftover convention from the Underscore
+days — the dependency is long gone and these are hand-written or native.
+
+```javascript
+import { _ } from "@makesites/app";
+
+_.extend( target, patch );        // shallow merge, mutates and returns target
+_.result( this, "url" );          // resolve a value, getter or method
+_.isEqual( a, b );                // value equality (structural for objects)
+_.isEmpty( value );               // PHP-style: 0, false, "0" and {} are empty
+_.uniqueId( "row" );              // "row-17"
+_.bindAll( obj, "onClick" );      // permanently bind methods
+_.assignable( obj, "model" );     // would a plain assignment succeed?
+```
+
+`_.mixin()` is the extension point for a template compiler:
+
+```javascript
+_.mixin({ template: Handlebars.compile });
+```
+
+The `Utils` class is exported too, if you want your own instance.
 
 ### Events bus
 

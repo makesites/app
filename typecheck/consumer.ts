@@ -5,7 +5,7 @@
 // chain a real user hits: package name -> exports condition -> declarations.
 // It is never executed; it exists to fail the build if the types stop working.
 import {
-	APP, Observable, Model, Collection, View, Router, Events, Template, sync
+	APP, Observable, Model, Collection, View, Router, Events, Template, sync, _, Utils
 } from "@makesites/app";
 
 // --- Model ---------------------------------------------------------------
@@ -81,4 +81,12 @@ const player = new Player();
 player.on("play", (track) => console.log(track));
 player.listenToOnce(book, "sync", () => console.log("first sync only"));
 
-export { title, changed, found, titles, grouped, view, app, bus, router, template, player };
+// --- utilities -----------------------------------------------------------
+const merged: Object = _.extend({}, { a: 1 }, { b: 2 });
+const resolved = _.result(book, "url");
+const empty: boolean = _.isEmpty({});
+const cid: string = _.uniqueId("row");
+const ownUtils = new Utils();
+ownUtils.mixin({ template: (markup: string) => () => markup });
+
+export { title, changed, found, titles, grouped, view, app, bus, router, template, player, merged, resolved, empty, cid, ownUtils };

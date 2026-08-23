@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.8.0 (Sun, 23 Aug 2026 16:46:20 GMT)
+ * Version: 0.8.0 (Sun, 23 Aug 2026 17:06:28 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -3740,7 +3740,18 @@ class Events extends Base {
 	}
 }
 
-// utilities
+/**
+ * The framework's utility belt. A single shared instance is exported as `_` — the
+ * same one every framework class uses — so code extending Model / View /
+ * Collection has the same helpers available:
+ *
+ *   import { _ } from "@makesites/app";
+ *   _.extend( target, patch );
+ *   _.result( this, "url" );
+ *
+ * The name is a convention carried over from the Underscore.js days; the
+ * dependency is long gone and these are all hand-written or native.
+ */
 class Utils {
 
 	constructor() {
@@ -3770,6 +3781,14 @@ class Utils {
 	// (The previous implementation built a fresh object - so mutating callers
 	// silently lost their changes - and used `_.extend.caller`, which throws in
 	// strict mode / ES modules for any nested-object property.)
+	/**
+	 * Shallow-merge the own-enumerable properties of each source onto the first
+	 * argument and return it. Both `_.extend({}, a, b)` and the mutating
+	 * `_.extend(target, patch)` forms work; falsy sources are skipped.
+	 * @param {Object} destination
+	 * @param {...Object} sources
+	 * @returns {Object} destination
+	 */
 	extend( destination, ...sources ){
 		destination = destination || {};
 		// Object.assign copies the same own-enumerable keys the hand-rolled
@@ -3784,6 +3803,10 @@ class Utils {
 		return destination;
 	}
 
+	/**
+	 * A random RFC-4122 v4 identifier.
+	 * @returns {string}
+	 */
 	uuid(){
 		return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
 			var r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
@@ -3809,6 +3832,13 @@ class Utils {
 	// arguments, so every bound method silently lost its parameters -
 	// `_.bindAll(obj, "greet"); obj.greet("Ada", "!")` returned "hi undefinedundefined".
 	// Function.prototype.bind forwards them, and is faster besides.
+	/**
+	 * Permanently bind the named methods to `context`, so they can be passed as
+	 * detached callbacks.
+	 * @param {Object} context
+	 * @param {...string} methods
+	 * @returns {Object} context
+	 */
 	bindAll( context, ...methods ){
 		for( var i = 0; i < methods.length; i++ ){
 			var name = methods[i];
@@ -3818,6 +3848,12 @@ class Utils {
 	}
 
 	// Source: https://locutus.io/php/var/empty/
+	/**
+	 * PHP-style emptiness: `undefined`, `null`, `false`, `0`, `""`, `"0"` and an
+	 * object with no own keys are all empty.
+	 * @param {*} mixedVar
+	 * @returns {boolean}
+	 */
 	isEmpty( mixedVar ){
 		// the PHP-style empty values, compared inline instead of scanned out of an
 		// array that was rebuilt on every call (~1.6x faster). Semantics unchanged:
@@ -3837,6 +3873,11 @@ class Utils {
 		return (typeof v == "string");
 	}
 
+	/**
+	 * The element siblings of a node (excluding itself and text nodes).
+	 * @param {Element} elem
+	 * @returns {Element[]}
+	 */
 	getSiblings (elem) {
 
 		// Setup siblings array and get the first sibling
@@ -3859,6 +3900,11 @@ class Utils {
 	// (The previous time-based implementation collided for objects created in the
 	// same millisecond, which broke cid uniqueness - and thus the collection
 	// _byId index and per-view delegateEvents namespaces.)
+	/**
+	 * A process-unique id, optionally prefixed — used for `cid`s.
+	 * @param {string} [prefix]
+	 * @returns {string}
+	 */
 	uniqueId( prefix ){
 		this._idCounter = ( this._idCounter || 0 ) + 1;
 		return ( prefix ? prefix + "-" : "" ) + this._idCounter;
@@ -3880,6 +3926,14 @@ class Utils {
 	// Traverses the children of `obj` along `path`. If a child is a function, it
 	// is invoked with its parent as context. Returns the value of the final
 	// child, or `fallback` if any child is undefined.
+	/**
+	 * Resolve a property that may be a value, a getter or a method: walks `path`
+	 * on `obj`, invoking any function it finds with its parent as context.
+	 * @param {Object} obj
+	 * @param {(string|string[])} path
+	 * @param {*} [fallback]
+	 * @returns {*}
+	 */
 	result( obj, path, fallback ){
 		path = ( Array.isArray(path) ) ? path : [path];
 		var length = path.length;
@@ -3906,6 +3960,13 @@ class Utils {
 	// (`Object.entries(obj).forEach(...)`) measured **4.3x SLOWER** here, because
 	// it allocates an array of [key, value] pairs to walk an object we can walk
 	// directly. Native is not automatically faster - it was measured.
+	/**
+	 * Iterate an array's items or an object's own values.
+	 * @param {(Array|Object)} obj
+	 * @param {(value: *, key: (number|string), obj: *) => void} fn
+	 * @param {Object} [context]
+	 * @returns {(Array|Object)} obj
+	 */
 	each( obj, fn, context ){
 		if( obj == null ) return obj;
 		if( Array.isArray(obj) ){
@@ -3954,6 +4015,13 @@ class Utils {
 	// throws in strict mode (all ES modules are strict), which is what broke
 	// subclass getters before the resolve-merge lifecycle of commit 27. Use this
 	// where a public name genuinely has to be assigned rather than resolved.
+	/**
+	 * Can `obj[name] = value` succeed? False when the name resolves to an accessor
+	 * with no setter — assigning to one throws in strict mode.
+	 * @param {Object} obj
+	 * @param {string} name
+	 * @returns {boolean}
+	 */
 	assignable( obj, name ){
 		var target = obj;
 		while( target ){
@@ -3967,6 +4035,13 @@ class Utils {
 
 	// shallow value equality: strict for primitives, JSON for plain objects/arrays
 	// (guarded, so circular structures compare unequal rather than throwing)
+	/**
+	 * Value equality: strict for primitives, structural (via JSON) for plain
+	 * objects and arrays. Circular structures compare unequal rather than throwing.
+	 * @param {*} a
+	 * @param {*} b
+	 * @returns {boolean}
+	 */
 	isEqual( a, b ){
 		if( a === b ) return true;
 		if( a === null || b === null || typeof a !== "object" || typeof b !== "object" ) return false;
@@ -3975,6 +4050,12 @@ class Utils {
 
 	// copy the properties of `obj` onto this utils instance (used to register a
 	// template compiler, e.g. Handlebars)
+	/**
+	 * Copy properties onto this utils instance — the extension point for
+	 * registering a template compiler, e.g. `_.mixin({ template: Handlebars.compile })`.
+	 * @param {Object} obj
+	 * @returns {this}
+	 */
 	mixin( obj ){
 		for( var key in obj ) this[key] = obj[key];
 		return this;
@@ -4188,6 +4269,7 @@ APP.ready = function( callback ){
 
 // Base Classes
 APP.Observable = Observable;
+APP.Utils = Utils;
 APP.Model = Model;
 APP.View = View;
 APP.Controller = Controller;
@@ -4200,6 +4282,9 @@ APP.Events = Events;
 
 // The global history singleton
 APP.history = history;
+
+// APP._ is assigned in main.js: the `_` singleton is created after this file in
+// the concatenation, so reading it here would capture `undefined`.
 
 // Namespace containers
 APP.Models = {};
@@ -4214,11 +4299,16 @@ APP.Templates = {};
 // Initialize utilities
 // convention carried from the legacy underscore.js
 var _ = new Utils();
+// register on the namespace here rather than in app.js - that file is
+// concatenated before this point, so `_` would still be undefined there
+APP._ = _;
 
 // expose on the global (guarded so the bundle also imports under Node/SSR)
 if ( typeof window !== "undefined" ) window.APP = APP;
 
 export { APP, Observable, Model, View, Controller, Router, history, Events, Collection, Layout, Template, Session, sync };
+// the shared utility belt the framework classes themselves use, plus its class
+export { _, Utils };
 export { TouchMixin, MouseMixin, ScrollMixin, MotionMixin, GamepadMixin, KeysMixin };
 
 //# sourceMappingURL=app.js.map
