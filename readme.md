@@ -25,6 +25,8 @@ Underscore, System.js) with native Web APIs: `fetch`, `IntersectionObserver`,
 * `IntersectionObserver`-based view visibility (`visible` / `hidden` events)
 * Remote templates via `DOMParser`; a **pluggable compiler** (CSP-safe via injection)
 * Composable input mixins: Touch, Mouse, Scroll, Motion, Gamepad, Keys
+* `Observable` - make any class an event emitter, no Model required
+* **TypeScript declarations** generated from JSDoc, and source maps for both bundles
 
 
 ## Installation
@@ -311,17 +313,42 @@ class Game extends KeysMixin(GamepadMixin(View)) {
 ## Build & test
 
 ```bash
-npm run build      # concatenates lib/ -> dist/app.js and minifies -> dist/app.min.js
-npm test           # node --test
-npm run coverage   # node --test --experimental-test-coverage
+npm run build         # lib/ -> dist/app.js (+ .map), minified bundle, and types/
+npm test              # node --test
+npm run coverage      # node --test --experimental-test-coverage
+npm run lint          # eslint
+npm run types         # regenerate types/app.d.ts and type-check a sample consumer
+npm run test:browser  # Playwright smoke tests against the built bundles
 ```
 
 The concatenation manifest (dependency order) lives in `build/index.js`. The
-suite runs on the built bundle, so build before testing (CI does).
+suite runs on the built bundle, so build before testing (CI does). Both bundles
+ship **source maps** that resolve back to `lib/*.js`.
 
-The shipped library has **no runtime dependencies**. The test suite uses `jsdom`
-as a devDependency to exercise the view layer against a real DOM, and `terser`
-for the minified bundle.
+The shipped library has **no runtime dependencies**. The devDependencies are
+`terser` (minified bundle), `typescript` (declarations), `eslint`, `jsdom` (the
+view layer is tested against a real DOM) and `@playwright/test` (browser smoke
+tests, which need `npx playwright install chromium` and are not part of
+`npm test`).
+
+## TypeScript
+
+Declarations are generated from the JSDoc and published as `types/app.d.ts`, so
+the package works out of the box:
+
+```typescript
+import { Model, Collection } from "@makesites/app";
+
+class Book extends Model {
+  get defaults(){ return { title: "", read: false }; }
+}
+const library = new Collection([{ id: 1 }], { model: Book });
+```
+
+Methods that carry JSDoc get real signatures; the rest are `any`. One known
+limitation: `Collection`'s `model` is inferred as a property, so TypeScript
+rejects `get model(){ ... }` on a subclass (it works at runtime) - pass
+`{ model: Book }` instead.
 
 
 ## Status

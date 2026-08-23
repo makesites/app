@@ -1,3 +1,23 @@
-components
-bower_components
-node_modules
+# dependencies
+node_modules/
+
+# test + tooling output
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+coverage/
+*.tsbuildinfo
+
+# logs
+*.log
+npm-debug.log*
+
+# editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# NOTE: dist/ and types/ are intentionally NOT ignored - both are committed
+# build output (the package publishes them, and CI verifies they are in sync).
