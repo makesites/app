@@ -145,6 +145,18 @@ book.set({ title: "Middlemarch" });   // the view re-renders
 view.remove();   // stopListening + undelegate + disconnect observer + detach
 ```
 
+With no `el`, the view builds its own element from `tagName` (default `div`),
+`className`, `id` and `attributes` — as options or as subclass declarations:
+
+```javascript
+class BookRow extends View {
+  get tagName(){ return "li"; }
+  get className(){ return "book"; }
+  get attributes(){ return { role: "listitem" }; }
+}
+new BookRow({ model: book });        // <li class="book" role="listitem">
+```
+
 To watch something else, use `listen`/`listenTo` — also torn down by `remove()`.
 When you override `initialize()`, call `super.initialize()` so the base setup
 (element, template, bindings, visibility observer) still runs:
@@ -184,6 +196,25 @@ class Main extends Controller {
 
 APP.Controllers.Default = Main;     // the facade picks this up
 ```
+
+### Observable
+
+Any object can take part in the event system — you don't have to be a Model:
+
+```javascript
+import { Observable } from "@makesites/app";
+
+class Player extends Observable {
+  play(track){ this.trigger("play", track); }
+}
+
+ui.listenTo(player, "play", ui.render);        // torn down by ui.stopListening()
+ui.listenToOnce(player, "ready", ui.enable);   // auto-unbinds after firing
+```
+
+`Model`, `Collection`, `View`, `Router` and the `Events` bus all extend it, so
+`on` / `off` / `once` / `trigger` / `listenTo` / `listenToOnce` / `stopListening`
+behave identically everywhere.
 
 ### Events bus
 

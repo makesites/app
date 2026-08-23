@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.8.0 (Sun, 23 Aug 2026 14:45:31 GMT)
+ * Version: 0.8.0 (Sun, 23 Aug 2026 14:48:16 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -1291,11 +1291,34 @@ class View extends Base {
 	}
 
 	// Internal methods
-	_getEl( options ){
-		var el = options.el || document.createElement("div");
-		//lookup element
-		if(typeof el == "string") el = document.querySelector( el );
 
+	// Resolve the view's element: an `el` option (an element or a selector), or
+	// a new one built from the Backbone-style declarations.
+	//
+	// `tagName` / `className` / `id` / `attributes` were accepted nowhere before:
+	// a view without an `el` always got a bare `<div>`, so
+	// `new View({ tagName: "li", className: "card" })` silently produced the wrong
+	// element. They may be passed as options or declared on the subclass (they are
+	// only ever read, so a getter or a function is fine - `attributes` as a
+	// function is the Backbone idiom).
+	_getEl( options ){
+		var el = options.el;
+		// a selector resolves against the document
+		if( typeof el === "string" ) el = document.querySelector( el );
+		if( el ) return el;
+
+		var tagName = options.tagName || _.result( this, "tagName" ) || "div";
+		el = document.createElement( tagName );
+
+		var attributes = _.extend( {}, _.result( this, "attributes" ), options.attributes );
+		var className = options.className || _.result( this, "className" );
+		var id = options.id || _.result( this, "id" );
+		if( className ) attributes["class"] = className;
+		if( id ) attributes.id = id;
+
+		for( var key in attributes ){
+			if( attributes[key] != null ) el.setAttribute( key, attributes[key] );
+		}
 		return el;
 	}
 
