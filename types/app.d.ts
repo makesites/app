@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.8.0 (Sun, 23 Aug 2026 16:36:45 GMT)
+ * Version: 0.8.0 (Sun, 23 Aug 2026 16:40:59 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -84,7 +84,6 @@ declare class Observable {
 }
 declare class Base extends Observable {
     _optionStates: Object;
-    _onResize: any;
     _resizeTimer: any;
     _delegateEvents: any;
     el: any;
@@ -244,7 +243,6 @@ declare class View extends Base {
     model: any;
     collection: any;
     data: any;
-    state: Model;
     _baseStates: {
         scroll: string;
     };
@@ -255,6 +253,7 @@ declare class View extends Base {
     cid: string;
     url: ((options: any) => any) | undefined;
     template: any;
+    _state: any;
     __inherit: any;
     observer: IntersectionObserver | undefined;
     /**
@@ -262,6 +261,8 @@ declare class View extends Base {
      */
     constructor(options?: Object);
     initialize(): void;
+    get state(): any;
+    set state(value: any);
     _viewDefaults(): {
         data: boolean;
         html: boolean;
@@ -305,6 +306,15 @@ declare class View extends Base {
     _navigate(e: any): void;
     _resize(): void;
     _scroll(): void;
+    /**
+     * Subscribe to an event. Overridden so that asking for "visible" / "hidden"
+     * starts the IntersectionObserver - it is not created until something wants it.
+     * @param {string} name
+     * @param {EventCallback} callback
+     * @param {Object} [context]
+     * @returns {this}
+     */
+    on(name: string, callback: EventCallback, context?: Object): this;
     isVisible(): any;
     _setupVisibilityObserver(): void;
     /**

@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.8.0 (Sun, 23 Aug 2026 16:36:45 GMT)
+ * Version: 0.8.0 (Sun, 23 Aug 2026 16:40:59 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -232,14 +232,9 @@ class Base extends Observable {
 	// Events are inherited from Observable (on/off/once/trigger/listenTo/...)
 
 	remove() {
-		// stop resize monitoring. This has to be the *bound* handler that was
-		// registered (`_onResize`): removeEventListener matches by identity, so
-		// passing the prototype method `this._resize` removed nothing.
-		if( typeof window !== "undefined" && this._onResize ){
-			window.removeEventListener( "resize", this._onResize );
-		}
-		this._onResize = null;
-		// drop a pending debounced resize so it can't fire after teardown
+		// drop a pending debounced resize so it can't fire after teardown.
+		// (Views no longer hold their own window listener - they register with a
+		// single shared one, which View#remove unregisters from.)
 		if( this._resizeTimer ){
 			clearTimeout( this._resizeTimer );
 			this._resizeTimer = null;
@@ -1026,6 +1021,43 @@ class Model extends Base {
 }
 
 
+// One window "resize" listener for every View, instead of one per instance.
+// A list of 500 rows used to register 500 listeners; now it registers none,
+// because the base resize() is a no-op and only views that actually override it
+// are watched at all.
+var resizeTargets = new Set();
+var resizeListener = null;
+var resizeWindow = null;
+
+function watchResize( view ){
+	if( typeof window === "undefined" ) return;
+	resizeTargets.add( view );
+	// already listening on this window
+	if( resizeListener && resizeWindow === window ) return;
+	// the window changed under us (test harnesses swap it; a browser never does)
+	if( resizeListener && resizeWindow ) resizeWindow.removeEventListener( "resize", resizeListener );
+	resizeListener = function( e ){
+		resizeTargets.forEach(function( target ){
+			// skip views that never overrode resize() - the base one is a no-op, so
+			// waking them would only schedule a debounce timer to call nothing.
+			// Checked here rather than at registration so a resize handler assigned
+			// after construction still works.
+			if( target.resize === View.prototype.resize ) return;
+			target._resize( e );
+		});
+	};
+	resizeWindow = window;
+	resizeWindow.addEventListener( "resize", resizeListener );
+}
+
+function unwatchResize( view ){
+	resizeTargets.delete( view );
+	if( resizeTargets.size || !resizeListener ) return;
+	if( resizeWindow ) resizeWindow.removeEventListener( "resize", resizeListener );
+	resizeListener = null;
+	resizeWindow = null;
+}
+
 class View extends Base {
 
 	/**
@@ -1046,15 +1078,8 @@ class View extends Base {
 		if( options.model && _.assignable( this, 'model' ) ) this.model = options.model;
 		if( options.collection && _.assignable( this, 'collection' ) ) this.collection = options.collection;
 		this.data = options.data || this.model || this.collection || null;
-		// containers
-		//var state = Backbone.View.prototype.state || new Backbone.Model();
-		this.state = new Model();
-		// defaults
-		this.state.set({
-			loaded : false,
-			scroll : false,
-			visible : false
-		});
+		// `state` is created on first access (see the accessor below) rather than
+		// here, so a view that never renders never allocates a Model for it.
 		// built-in state machine + events. Kept as _base* so they merge with a
 		// subclass's states/events (getter or property) without being clobbered -
 		// and so subclass getters don't collide with a constructor assignment.
@@ -1108,14 +1133,19 @@ class View extends Base {
 		// proxy internal method for future requests - unless the subclass declared
 		// its own `url` accessor, which cannot be assigned over
 		if( _.assignable( this, 'url' ) ) this.url = this._url;
-		// supporting custom templates
-		let TMPL = ( this.options.template ) ? this.options.template : Template;
-
 		// set the type to default (as the Template expects)
 		if( !this.options.type ) this.options.type = "default";
-		this.template = (typeof TMPL == "function") ? new TMPL(html, { url : url }) : TMPL;
-		// re-render when the template loads (tracked so remove() cleans it up)
-		if( self.options.autoRender && this.template.on ) this.listenTo(this.template, "loaded", this.render);
+		// Only build a Template when there is something for it to do. Every view
+		// used to get one even with no `html` and no `url` - 500 list rows meant
+		// 500 Template instances that compiled nothing.
+		if( html || url || this.options.template ){
+			let TMPL = ( this.options.template ) ? this.options.template : Template;
+			this.template = (typeof TMPL == "function") ? new TMPL(html, { url : url }) : TMPL;
+			// re-render when the template loads (tracked so remove() cleans it up)
+			if( self.options.autoRender && this.template.on ) this.listenTo(this.template, "loaded", this.render);
+		} else {
+			this.template = null;
+		}
 
 		// add listeners (tracked via listenTo so remove() tears them down)
 		if( this.options.hasData && !_.isUndefined( this.data.on ) ){
@@ -1127,19 +1157,31 @@ class View extends Base {
 		} else {
 			this.trigger("loaded");
 		}
-		// #36 - Adding resize event. Keep the bound handler: removeEventListener
-		// matches by identity, so the teardown in Base#remove() could never
-		// remove an inline .bind(this) and every removed view leaked a listener
-		// (and, through it, the whole view).
-		this._onResize = this._resize.bind(this);
-		if( typeof window !== "undefined" ) window.addEventListener("resize", this._onResize );
-		// monitor viewport visibility natively (replaces the jQuery scroll math)
-		this._setupVisibilityObserver();
+		// #36 - resize handling, through the shared listener. Registration is just a
+		// Set entry; whether this view is actually woken is decided at dispatch.
+		watchResize( this );
+		// Visibility is observed lazily - see isVisible() / on(). Creating an
+		// IntersectionObserver per view up front was the single biggest per-instance
+		// cost, and most views never ask about visibility at all.
 
 		this.initStates();
 		// initiate parent (states etc.)
 		//return Backbone.View.prototype.initialize.call( this, options );
 		//return View.prototype.initialize.call(this, options);
+	}
+
+	// The view's state Model, created on demand. Most of the lifecycle touches it
+	// (render sets `loaded`), but a view that is constructed and never rendered -
+	// or one that only ever has its own render() called - no longer pays for it.
+	get state(){
+		if( !this._state ){
+			this._state = new Model();
+			this._state.set({ loaded: false, scroll: false, visible: false });
+		}
+		return this._state;
+	}
+	set state( value ){
+		this._state = value;
 	}
 
 	// built-in view option defaults (merged under any subclass get defaults()).
@@ -1178,8 +1220,6 @@ class View extends Base {
 	 * @returns {void}
 	 */
 	render(){
-		// prerequisite
-		if( !this.template ) return;
 		// execute pre-render actions
 		this._preRender();
 		//
@@ -1386,6 +1426,8 @@ class View extends Base {
 	}
 
 	_getTemplate(){
+		// null when no markup was supplied (the Template is built lazily)
+		if( !this.template ) return undefined;
 		return ( this.options.type ) ? this.template.get( this.options.type ) : this.template;
 	}
 
@@ -1462,9 +1504,25 @@ class View extends Base {
 		//this.state.set("scroll", true);
 	}
 
+	/**
+	 * Subscribe to an event. Overridden so that asking for "visible" / "hidden"
+	 * starts the IntersectionObserver - it is not created until something wants it.
+	 * @param {string} name
+	 * @param {EventCallback} callback
+	 * @param {Object} [context]
+	 * @returns {this}
+	 */
+	on( name, callback, context ){
+		var result = super.on( name, callback, context );
+		if( /(^|\s)(visible|hidden)(\s|$)/.test( String( name ) ) ) this._setupVisibilityObserver();
+		return result;
+	}
+
 	// checks if the view is visible
-	// (state is maintained natively by the IntersectionObserver below)
+	// (state is maintained natively by the IntersectionObserver, started here on
+	// first use if nothing has subscribed to visible/hidden yet)
 	isVisible(){
+		this._setupVisibilityObserver();
 		return this.state.get("visible");
 	}
 
@@ -1473,6 +1531,7 @@ class View extends Base {
 	// this to the compositor thread at effectively zero main-thread cost, and
 	// emits "visible"/"hidden" as the element enters/leaves the viewport.
 	_setupVisibilityObserver(){
+		if( this.observer ) return;
 		if( typeof IntersectionObserver === "undefined" || !this.el ) return;
 		var self = this;
 		this.observer = new IntersectionObserver(function( entries ){
@@ -1497,6 +1556,8 @@ class View extends Base {
 		this.stopListening();
 		// drop the delegated DOM listeners too, so a re-used element is clean
 		this.undelegateEvents();
+		// leave the shared resize registry
+		unwatchResize( this );
 		if( this.observer ) this.observer.disconnect();
 		if( this.el && this.el.parentNode ) this.el.parentNode.removeChild( this.el );
 		// let Base remove the resize listener etc.

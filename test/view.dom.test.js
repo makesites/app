@@ -94,7 +94,10 @@ test("remove(): disconnects the observer and drops the tracked bindings", () => 
 	model.set({ title: "b" });
 	assert.equal(renders, 1);
 
+	// visibility is observed lazily now - asking for it starts the observer
+	view.isVisible();
 	const observer = view.observer;
+	assert.ok( observer, "isVisible() starts the observer on demand" );
 	view.remove();
 	assert.equal(observer.disconnected, true, "IntersectionObserver disconnected");
 

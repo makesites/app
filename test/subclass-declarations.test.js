@@ -64,6 +64,10 @@ test("Controller: constructor options win over a subclass defaults", () => {
 
 test("View: `get url()` is not overwritten by the internal resolver", () => {
 	const dom = mountDOM(`<div id="main"></div>`);
+	// the url makes the View build a Template, which starts a fetch we don't care
+	// about here - stub it so the suite output stays clean
+	const originalFetch = globalThis.fetch;
+	globalThis.fetch = async () => ({ text: async () => "" });
 	try {
 		class Remote extends View {
 			get url(){ return "/templates/remote.html"; }
@@ -72,6 +76,7 @@ test("View: `get url()` is not overwritten by the internal resolver", () => {
 		assert.equal(view.url, "/templates/remote.html", "the declaration survives construction");
 		assert.equal(view.options.url, "/templates/remote.html", "and is picked up as the template url");
 	} finally {
+		if( originalFetch ) globalThis.fetch = originalFetch; else delete globalThis.fetch;
 		dom.restore();
 	}
 });
