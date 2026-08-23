@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.7.0 (Sun, 23 Aug 2026 13:24:15 GMT)
+ * Version: 0.7.0 (Sun, 23 Aug 2026 13:28:42 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -2721,6 +2721,17 @@ let memoryStore = {
 };
 
 
+// Reserved words that cannot be used as a function parameter name, so they can
+// never be exposed as a template variable (the payload is still reachable as
+// `data` / `obj`).
+const RESERVED_WORDS = new Set([
+	"break","case","catch","class","const","continue","debugger","default","delete",
+	"do","else","enum","export","extends","false","finally","for","function","if",
+	"import","in","instanceof","new","null","return","super","switch","this","throw",
+	"true","try","typeof","var","void","while","with","yield","let","static",
+	"implements","interface","package","private","protected","public","await","arguments","eval"
+]);
+
 class Template extends Model {
 
 	constructor( html, options ) {
@@ -2737,18 +2748,24 @@ class Template extends Model {
 
 		this.cid = _.uniqueId("template");
 
-		this.initialize();
+		this._setupTemplate();
 	}
 
-	initialize(){
-		// fallback for options
+	// Compile the inline markup and/or start the remote load.
+	//
+	// This used to live in initialize(), which ran TWICE: Model's constructor
+	// calls initialize() and Template's constructor called it again. On the first
+	// pass `this.html` was still undefined (it is assigned after super()), but
+	// `this.options.url` was already set - so a remote template was fetched twice
+	// and "loaded" fired twice. Keeping the work here leaves initialize() as what
+	// it is everywhere else in the framework: the subclass hook, called once.
+	_setupTemplate(){
 		var html = this.html;
 
 		if( !_.isEmpty(html) ){
 			this.set( "default", this.compile( html ) );
 			this.trigger("loaded");
 		}
-		//if( !_.isUndefined( options.url ) && !_.isEmpty( options.url ) ){
 		if( this.options.url ){
 			this.url = this.options.url;
 			this.fetch();
@@ -2770,16 +2787,36 @@ class Template extends Model {
 		cleanMarkup = cleanMarkup.replace(/`/g, '\\`');
 		// escaper applied to interpolated *values* (mitigates HTML/script injection)
 		var escape = this._sanitize();
+		// compiled functions, keyed by the argument signature. The signature only
+		// changes when the shape of the data changes, so in practice a template is
+		// compiled once instead of on every single render.
+		var compiled = Object.create( null );
 		// main function
 		var template = function( data ){
 			data = data || {};
-			const keys = Object.keys( data );
-			// HTML-escape string values before they are interpolated into the markup
-			const values = keys.map(function( key ){
-				var v = data[key];
-				return ( typeof v === "string" ) ? escape( v ) : v;
+			// The whole payload is always available as `data` / `obj`, and `escape`
+			// is the HTML escaper (top-level string values are escaped for you;
+			// anything you reach through `data` is raw, so escape it yourself:
+			// `${data.items.map(i => escape(i.title))}`).
+			//
+			// Only keys that are legal JavaScript identifiers can also be exposed
+			// by name: `new Function(...)` builds a parameter list, so a key like
+			// "0" (every key of an array - e.g. a Collection's toJSON()) or
+			// "foo-bar" used to throw `SyntaxError: Unexpected number` at render
+			// time, taking every collection-backed view down with it.
+			const keys = [ "data", "obj", "escape" ];
+			const values = [ data, data, escape ];
+			Object.keys( data ).forEach(function( key ){
+				if( !Template.isIdentifier( key ) || keys.indexOf( key ) > -1 ) return;
+				keys.push( key );
+				var value = data[key];
+				// HTML-escape string values before they are interpolated
+				values.push( ( typeof value === "string" ) ? escape( value ) : value );
 			});
-			const fn = new Function(...keys, 'return `' + cleanMarkup + '`');
+
+			const signature = keys.join(",");
+			const fn = compiled[signature] ||
+				( compiled[signature] = new Function(...keys, 'return `' + cleanMarkup + '`') );
 
 			return fn(...values);
 		};
@@ -2787,6 +2824,12 @@ class Template extends Model {
 		//template.bind( this );
 
 		return template;
+	}
+
+	// Is `name` usable as a function parameter? (a valid identifier, and not a
+	// reserved word - `new Function("class", ...)` is a SyntaxError)
+	static isIdentifier( name ){
+		return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test( name ) && !RESERVED_WORDS.has( name );
 	}
 
 	// fetch a remote template file natively (no jQuery $.get)

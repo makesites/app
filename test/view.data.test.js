@@ -29,11 +29,10 @@ test("new View({ model }) assigns this.model and binds it", () => {
 
 test("new View({ collection }) assigns this.collection", () => {
 	const collection = new Collection([{ id: 1 }]);
-	// autoRender is off here on purpose: the built-in template compiler cannot
-	// consume a collection's array toJSON() yet (see the Template commit)
-	const view = new View({ el: "#main", collection, autoRender: false });
+	const view = new View({ el: "#main", collection, html: "<i>${data.length}</i>" });
 	assert.equal(view.collection, collection);
 	assert.equal(view.data, collection);
+	assert.equal(view.el.innerHTML, "<i>1</i>", "array data renders");
 });
 
 test("an explicit data option still wins over model/collection", () => {
