@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.8.0 (Sun, 23 Aug 2026 16:32:57 GMT)
+ * Version: 0.8.0 (Sun, 23 Aug 2026 16:36:45 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -706,6 +706,20 @@ class Model extends Base {
 		this.set( data );
 	}
 
+	// The model's payload.
+	//
+	// `data` is the library's convention for "the thing this object holds" -
+	// Collection#data is its models, View#data is its source - so a Model exposes
+	// its attributes under the same name. `attributes` remains as the
+	// long-standing alias; both are the same object, so either can be read or
+	// replaced.
+	get data(){
+		return this.attributes;
+	}
+	set data( value ){
+		this.attributes = value || {};
+	}
+
 	/**
 	 * Get the value of an attribute.
 	 * @param {string} attr
@@ -1057,7 +1071,11 @@ class View extends Base {
 		//  extend options
 		this.options = _.extend({}, defaults, options);
 		// flags
-		this.options.data  = !_.isNull( this.data );
+		// whether a data source was resolved. This used to be written back over
+		// `options.data` - the very option the caller passes a model/collection in -
+		// so the same key meant a source going in and a boolean coming out. The flag
+		// now has its own name and `options.data` keeps what was passed.
+		this.options.hasData = !_.isNull( this.data );
 
 		this.cid = _.uniqueId("view");
 
@@ -1100,7 +1118,7 @@ class View extends Base {
 		if( self.options.autoRender && this.template.on ) this.listenTo(this.template, "loaded", this.render);
 
 		// add listeners (tracked via listenTo so remove() tears them down)
-		if( this.options.data && !_.isUndefined( this.data.on ) ){
+		if( this.options.hasData && !_.isUndefined( this.data.on ) ){
 			this.listenTo( this.data, this.options.bind, this.render );
 		}
 		// #11 : initial render only if data is not empty (or there are no data)
@@ -1330,11 +1348,11 @@ class View extends Base {
 		// variables
 		var template = this._getTemplate();
 		var hasMarkup = (this.options.html || ( this.options.url && template ) );
-		var hasData = (this.options.data && ( _.isUndefined( this.data.toJSON ) || ( !_.isUndefined( this.data.toJSON ) && !_.isEmpty(this.data.toJSON()))));
+		var hasData = (this.options.hasData && ( _.isUndefined( this.data.toJSON ) || ( !_.isUndefined( this.data.toJSON ) && !_.isEmpty(this.data.toJSON()))));
 		// if there's data and markup available, render
 		if( hasMarkup && hasData ) return true;
 		// if there's only one or the other render
-		if( hasMarkup && !this.options.data) return true;
+		if( hasMarkup && !this.options.hasData) return true;
 		if( hasData && !this.options.url ) return true;
 		// in all other cases, don't render
 		return false;
@@ -1349,7 +1367,7 @@ class View extends Base {
 		// make sure the container is presented
 		if( !this.options.silentRender ) this.el.style.display = 'block';
 		// remove loading state (if data has arrived)
-		if( !this.options.data || (this.options.data && !_.isEmpty(this._toJSON()) ) ){
+		if( !this.options.hasData || (this.options.hasData && !_.isEmpty(this._toJSON()) ) ){
 			this.el.classList.remove("loading");
 			// set the appropriate flag
 			this.state.set("loaded", true);
@@ -1362,7 +1380,7 @@ class View extends Base {
 
 	// get the JSON of the data
 	_toJSON(){
-		if( !this.options.data ) return {};
+		if( !this.options.hasData ) return {};
 		if( this.data.toJSON ) return this.data.toJSON();
 		return this.data; // in case the data is a JSON...
 	}

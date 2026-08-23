@@ -4,7 +4,7 @@
 // tuned without anyone having to re-derive what they were supposed to do.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Model } from "../dist/app.js";
+import { Model, Collection } from "../dist/app.js";
 
 // The `_` singleton is internal to the bundle and not exported, so these drive
 // it through Model — which leans on extend / isEmpty / isEqual / result /
@@ -80,4 +80,32 @@ test("result: resolves a value, a getter and a method alike", () => {
 	class B extends Model { urlRoot(){ return "/b"; } }
 	assert.equal( new A({ id: 1 }).url(), "/a/1" );
 	assert.equal( new B({ id: 1 }).url(), "/b/1" );
+});
+
+test("Model#data is the attributes, under the library's `data` convention", () => {
+	const model = new Model({ title: "Middlemarch" });
+	// Collection#data is its models, View#data is its source — a Model's payload
+	// is its attributes, so it answers to the same name
+	assert.equal( model.data, model.attributes );
+	assert.equal( model.data.title, "Middlemarch" );
+
+	// `attributes` remains the alias; they are the same object
+	model.set({ read: true });
+	assert.equal( model.data.read, true );
+	assert.deepEqual( Object.keys( model.data ), Object.keys( model.attributes ) );
+});
+
+test("Model#data can be replaced wholesale", () => {
+	const model = new Model({ a: 1 });
+	model.data = { b: 2 };
+	assert.deepEqual( model.attributes, { b: 2 } );
+	assert.equal( model.get("b"), 2 );
+	model.data = null;
+	assert.deepEqual( model.attributes, {}, "a null payload resets to an empty object" );
+});
+
+test("Collection#data and #models are the same array", () => {
+	const collection = new Collection([{ id: 1 }, { id: 2 }]);
+	assert.equal( collection.data, collection.models );
+	assert.equal( collection.data.length, 2 );
 });

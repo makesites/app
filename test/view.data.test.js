@@ -19,7 +19,7 @@ test("new View({ model }) assigns this.model and binds it", () => {
 	// undefined and the documented render() above threw
 	assert.equal(view.model, model);
 	assert.equal(view.data, model, "data resolves to the model");
-	assert.equal(view.options.data, true, "the data flag is set");
+	assert.equal(view.options.hasData, true, "the data flag is set");
 	assert.equal(view.el.innerHTML, "<h2>Ada</h2>");
 
 	// the default `bind` includes "change", so the view re-renders

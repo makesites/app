@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.7.0 (Sun, 23 Aug 2026 16:32:57 GMT)
+ * Version: 0.8.0 (Sun, 23 Aug 2026 16:36:45 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -189,6 +189,8 @@ declare class Model extends Base {
     initialize(): void;
     _autofetch(): Promise<any>;
     add(obj: any): void;
+    get data(): {};
+    set data(value: {});
     /**
      * Get the value of an attribute.
      * @param {string} attr
