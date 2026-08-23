@@ -2,7 +2,7 @@
  * @name @makesites/app
  * A zero-dependency, ES6 client-side application framework: models, collections, views, controllers, native router/history, templates, sessions and input mixins.
  *
- * Version: 0.7.0 (Sun, 23 Aug 2026 13:17:10 GMT)
+ * Version: 0.7.0 (Sun, 23 Aug 2026 13:20:07 GMT)
  * Source: http://github.com/makesites/app
  *
  * @author makesites
@@ -1009,8 +1009,9 @@ class View extends Base {
 		if( this.url && !this.options.url) this.options.url = this.url;
 		// include init options in url()
 		var url = this._url( this.options );
-		// proxy internal method for future requests
-		this.url = this._url;
+		// proxy internal method for future requests - unless the subclass declared
+		// its own `url` accessor, which cannot be assigned over
+		if( _.assignable( this, 'url' ) ) this.url = this._url;
 		// supporting custom templates
 		let TMPL = ( this.options.template ) ? this.options.template : Template;
 
@@ -1397,18 +1398,12 @@ class Controller extends Router {
 
 		this.data = new Model();
 
-		// app configuration:
-		this.defaults = {
-			api : false,
-			autostart: true,
-			location : false,
-			pushState: false,
-			p404 : "/"
-		};
-
-		// app config refered to as options
+		// app config refered to as options: the framework's built-in defaults,
+		// then a subclass `defaults` (getter or property), then the caller's
+		// options. (The built-ins used to be assigned to `this.defaults`, so a
+		// subclass declaring `get defaults()` threw in the constructor.)
 		options = options || {};
-		this.options = _.extend({}, this.defaults, options);
+		this.options = _.extend({}, this._optionDefaults(), _.result(this, 'defaults'), options);
 
 		// built-in routes, merged UNDER any subclass routes at bind time (see
 		// _bindRoutes). Kept as _baseRoutes so a subclass can declare `get routes()`
@@ -1430,6 +1425,18 @@ class Controller extends Router {
 
 		this.initialize();
 
+	}
+
+	// framework option defaults, kept internal so a subclass can declare
+	// `get defaults()` (mirrors Model#_optionDefaults / Collection#_optionDefaults)
+	_optionDefaults(){
+		return {
+			api : false,
+			autostart: true,
+			location : false,
+			pushState: false,
+			p404 : "/"
+		};
 	}
 
 	initialize(){
@@ -1639,21 +1646,21 @@ class Collection extends Base {
 	constructor( models, options={} ) {
 		super( options );
 
-		// defaults
-		this.defaults = {
-			_synced : false,
-			autofetch: false,
-			cache: false
-		};
+		// the "item" of the collection: passed on instantiation, declared by a
+		// subclass (`get model(){ return Book; }` — Backbone's canonical form), or
+		// the base Model. Assigned only when the name is writable: assigning over
+		// a subclass accessor throws in strict mode, which made the idiomatic
+		// declaration impossible.
+		var ModelClass = options.model || this.model || Model;
+		if( _.assignable( this, 'model' ) ) this.model = ModelClass;
 
-		// the "item" of the collection can be defined on instantiation or default to the base Model
-		this.model = options.model || Model;
 		// the internal data array + the id/cid index
 		this._reset();
 
-		// merge options
+		// merge options: the framework's built-in option defaults, then a
+		// subclass `defaults` (getter or property), then the caller's options
 		options = options || {};
-		this.options = _.extend( {}, this.defaults, options );
+		this.options = _.extend( {}, this._optionDefaults(), _.result(this, 'defaults'), options );
 		// optional comparator (a subclass may also define get comparator())
 		if( options.comparator !== undefined ) this._comparator = options.comparator;
 
@@ -1662,6 +1669,13 @@ class Collection extends Base {
 		this.initialize( models, options );
 		// populate from the passed models (silently, at construction)
 		if( models ) this.reset( models, { silent: true } );
+	}
+
+	// framework option defaults, kept internal (mirrors Model#_optionDefaults and
+	// View#_viewDefaults) so a subclass is free to declare `get defaults()` — the
+	// constructor used to assign `this.defaults`, which threw over a getter
+	_optionDefaults(){
+		return { _synced: false, autofetch: false, cache: false };
 	}
 
 	// (re)initialise the internal store: the data array + the id/cid index.
