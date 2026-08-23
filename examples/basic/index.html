@@ -5,31 +5,47 @@
 <title>APP :: Basic</title>
 <link rel="shortcut icon" href="#">
 
-<script type="text/javascript" src="../../dist/app.min.js"></script>
-<script type="module" src="./jquery.js"></script>
-<script type="module" src="./main.js"></script>
-
 <script type="module">
 
-import { esPerson as Person } from './main.js';
-//import * as APP from '../../dist/app.browser.js';
+import { Model, View } from '../../dist/app.js';
 
-console.log( $ );
-var p = new Person("Makis", 100);
-console.log(p.name, p.age);
+// a model with attribute defaults
+class Person extends Model {
+	get defaults(){ return { name: "Anonymous", age: 0 }; }
+}
 
-/*
+// a view bound to it: the base View listens for "change" and re-renders
+class PersonView extends View {
+	render(){
+		const person = this.model.toJSON();
+		this.el.innerHTML = `<p><b>${person.name}</b> is ${person.age}</p>`;
+		return this;
+	}
+}
 
-import { APP } from './main.js';
+const person = new Person({ name: "Makis", age: 100 });
+const view = new PersonView({ el: "#main", model: person });
 
-var p = new APP("Makis", 100);
-*/
+console.log( person.toJSON() );
+
+// changing the model re-renders the view
+document.querySelector("#older").addEventListener("click", () => {
+	person.set({ age: person.get("age") + 1 });
+});
+
 </script>
 
 </head>
 <body>
 
+<h1>APP :: Basic</h1>
+
+<p>A Model and a View, bound together. Press the button — the view re-renders
+itself because it is listening to the model.</p>
+
 <div id="main"><!-- --></div>
+
+<button id="older" type="button">Happy birthday</button>
 
 </body>
 </html>

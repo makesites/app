@@ -2,38 +2,21 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>APP :: Setup</title>
+<title>APP :: Init</title>
 <link rel="shortcut icon" href="#">
 
-<!-- main lib -->
-<!--link rel="import" href="../../index.html"-->
-
-<script type="text/javascript" src="./es6-sample-project.min.js"></script>
-<script type="text/javascript" src="../../dist/app.min.js"></script>
-<script type="module" src="./jquery.js"></script>
 <script type="module" src="./main.js"></script>
-
-<script type="module">
-
-import { esPerson as Person } from './main.js';
-//import * as APP from '../../dist/app.browser.js';
-
-console.log( $ );
-var p = new Person("Makis", 100);
-console.log(p.name, p.age);
-
-/*
-
-import { APP } from './main.js';
-
-var p = new APP("Makis", 100);
-*/
-</script>
 
 </head>
 <body>
 
-<div id="main"><!-- --></div>
+<h1>APP :: Init</h1>
+
+<p>Booting the application facade. <code>new APP()</code> returns immediately with
+<code>events</code>, <code>state</code> and <code>views</code> ready; the router
+resolves asynchronously, so we <code>await app.ready</code>. Open the console.</p>
+
+<dl id="main"><!-- --></dl>
 
 </body>
 </html>

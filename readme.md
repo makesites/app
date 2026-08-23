@@ -104,6 +104,7 @@ an id/cid index, stays sorted by a `comparator`, and forwards its members' event
 
 ```javascript
 class Library extends Collection {
+  get model(){ return Book; }                 // members are Books
   get url(){ return "/api/books"; }
   get comparator(){ return "title"; }         // keep sorted by title
 }
@@ -113,9 +114,13 @@ library.on("add", (book) => console.log("added", book.get("title")));
 library.on("change", (book) => console.log("a member changed"));
 await library.fetch();                         // set()s the response (merge + remove)
 library.add({ id: 9, title: "A" });            // deduped by id, inserted in order
-library.get(9).set({ read: true });            // fires the collection's "change"
+library.get(9).set({ read: true });            // by id — fires "change"
+library.at(0);                                 // by position
 library.remove(9);
 ```
+
+`get()` resolves an **id** (or a cid, or a model), so it works with the usual
+numeric ids; `at()` is the positional accessor.
 
 ### View
 
@@ -123,12 +128,12 @@ Organises the DOM and reacts to data. Bindings made with `listen`/`listenTo` are
 torn down automatically on `remove()` (no leaks); visibility is tracked natively
 via `IntersectionObserver` (`visible` / `hidden` events). Zero jQuery.
 
+A view passed a `model` (or `collection`) binds to it automatically: the default
+`bind` option is `"add remove reset change"`, so `render()` re-runs when the data
+changes, and the binding is dropped on `remove()`.
+
 ```javascript
 class BookView extends View {
-  initialize(){
-    // auto-removed when the view is remove()d
-    this.listen(this.model, "change", this.render);
-  }
   render(){
     this.el.innerHTML = `<h2>${this.model.get("title")}</h2>`;
     return this;
@@ -136,7 +141,21 @@ class BookView extends View {
 }
 
 const view = new BookView({ model: book, el: "#app" });
-view.remove();   // stopListening + disconnect observer + detach from DOM
+book.set({ title: "Middlemarch" });   // the view re-renders
+view.remove();   // stopListening + undelegate + disconnect observer + detach
+```
+
+To watch something else, use `listen`/`listenTo` — also torn down by `remove()`.
+When you override `initialize()`, call `super.initialize()` so the base setup
+(element, template, bindings, visibility observer) still runs:
+
+```javascript
+class BookView extends View {
+  initialize(){
+    super.initialize();
+    this.listen(this.collection, "sort", this.render);
+  }
+}
 ```
 
 ### Controller & Router
@@ -191,6 +210,19 @@ const t = new Template("<b>${title}</b>");          // built-in (escapes data)
 // strict-CSP / bring-your-own engine:
 const t2 = new Template(html, { compiler: Handlebars.compile });
 ```
+
+Inside the markup you get every top-level key of the data whose name is a valid
+identifier, plus `data` / `obj` (the whole payload) and `escape`:
+
+```javascript
+// string values are HTML-escaped for you
+new Template("<b>${title}</b>");
+// anything reached through `data` is raw — escape it yourself
+new Template("<ul>${data.map(b => '<li>' + escape(b.title) + '</li>').join('')}</ul>");
+```
+
+The **markup** is author-trusted (it is compiled into a template literal, so a
+`${…}` in it executes). Inject a `compiler` for untrusted markup or a strict CSP.
 
 ### sync
 
@@ -249,31 +281,49 @@ class Game extends KeysMixin(GamepadMixin(View)) {
 
 ```bash
 npm run build      # concatenates lib/ -> dist/app.js and minifies -> dist/app.min.js
-npm test           # node --test (no test dependencies)
+npm test           # node --test
+npm run coverage   # node --test --experimental-test-coverage
 ```
 
-The concatenation manifest (dependency order) lives in `build/index.js`.
+The concatenation manifest (dependency order) lives in `build/index.js`. The
+suite runs on the built bundle, so build before testing (CI does).
+
+The shipped library has **no runtime dependencies**. The test suite uses `jsdom`
+as a devDependency to exercise the view layer against a real DOM, and `terser`
+for the minified bundle.
 
 
 ## Status
 
-The core — the APP facade, Model, Collection, View (with `listenTo` cleanup),
-Controller/Router, the Events bus, Template (pluggable compiler), `sync`, cache,
-`Session`, `Layout` and the input mixins — is modernized off
-Backbone/jQuery/Underscore and covered by a test suite. No jQuery, Underscore or
-Backbone remain in `lib/`.
+The core is feature-complete and covered by a test suite (`npm test`), with CI
+running build + tests on Node 20 / 22 / 24. No jQuery, Underscore or Backbone
+remain in `lib/`.
 
-The core is feature-complete and covered by a test suite (`npm test`): the APP
-facade; Model (attribute defaults, validation, change tracking, `idAttribute`,
-`urlRoot`); Collection (smart `set` with add/remove/merge, `comparator`/`sort`,
-`remove`/`reset`, id index, model-event forwarding); the native Router/History;
-the Events bus; Template (pluggable/CSP compiler); `sync` (with `AbortController`
-cancel/timeout); cache; Session; Layout; and the input mixins. Subclass
-`routes`/`events`/`states`/`defaults` getters work. No jQuery, Underscore or
-Backbone remain in `lib/`.
+- **APP facade** — `events` / `state` / `views` / `session` ready synchronously,
+  `router` via `await app.ready`.
+- **Model** — attribute `defaults`, `validate`, change tracking
+  (`previous` / `changedAttributes` / `hasChanged`), `idAttribute`, `urlRoot`.
+- **Collection** — smart `set` (add / remove / merge) with id dedup, `comparator`
+  and `sort`, `remove` / `reset`, an id+cid index behind `get()`, model-event
+  forwarding, and the Underscore-parity aggregators
+  (`groupBy` / `countBy` / `sortBy` / `invoke` / `partition` / `min` / `max` / `sample`).
+- **View / Layout** — `model` / `collection` binding, delegated `events`,
+  `listenTo` + full teardown on `remove()`, `IntersectionObserver` visibility.
+- **Router / History** — pushState & hashchange, route guards via `execute()`.
+- **sync** — `AbortController` cancel/timeout, opt-in retry with exponential
+  backoff + jitter, an app-wide base URL / credentials / headers.
+- **Template** — pluggable compiler (the CSP-safe path), remote fragments.
+- **cache / Session** — capability-probed storage that degrades instead of
+  throwing when it is absent or blocked.
 
-Nice-to-haves, not blocking: CI wiring, `sync` retry/backoff, and deeper Underscore
-parity on Collection (`groupBy`/`countBy`).
+Subclasses can declare `routes`, `events`, `states`, `defaults`, `model`,
+`comparator` and `url` as getters.
+
+Remaining work is architectural rather than corrective, and is tracked in
+`roadmap.md` §2: splitting the God-object `View` into `View` + `AppView`,
+shrinking the `_` utility shim toward native calls, moving to true ES modules
+with a bundler, unifying the `Events` / `defaults` / `data`-vs-`models` naming,
+and removing the `parse()` timer in favour of opt-in cache/session mixins.
 
 
 ## Credits
